@@ -54,10 +54,11 @@ try {
   await page.screenshot({ path: "web/e2e/02-goldharbour.png", fullPage: true });
   log("screenshot saved: web/e2e/02-goldharbour.png");
 
-  // URL should be /lands/land-1
-  const url = page.url();
-  if (!url.endsWith("/lands/land-1")) fail(`expected URL to end with /lands/land-1, got ${url}`);
-  log("URL:", url);
+  // URL should carry ?selected-land-id=land-1
+  const url = new URL(page.url());
+  const sel = url.searchParams.get("selected-land-id");
+  if (sel !== "land-1") fail(`expected selected-land-id=land-1, got '${sel}' (url: ${url})`);
+  log("URL:", url.toString());
 
   // ---- Click Hawkrest (no settlement) ----
   // Hawkrest sits on the right side of the map, partially under the panel,

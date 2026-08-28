@@ -61,7 +61,7 @@
   function selectLand(l: Land, ev: MouseEvent) {
     ev.stopPropagation();
     selectedLandId.set(l.id);
-    navigate(`/lands/${encodeURIComponent(l.id)}`);
+    navigate(`/?selected-land-id=${encodeURIComponent(l.id)}`);
   }
 
   function clearSelection() {

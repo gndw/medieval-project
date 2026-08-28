@@ -5,12 +5,13 @@
   import { selectedLandId } from "./lib/store";
   import { onMount } from "svelte";
 
-  // Sync URL → store on initial load so deep links like /lands/land-1
+  // Sync URL → store on initial load so deep links like /?selected-land-id=land-1
   // restore the selection after the SPA boots.
   onMount(() => {
-    const m = window.location.pathname.match(/^\/lands\/([^/]+)/);
-    if (m) {
-      selectedLandId.set(decodeURIComponent(m[1]));
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("selected-land-id");
+    if (id) {
+      selectedLandId.set(id);
     } else {
       selectedLandId.set(null);
     }
@@ -31,15 +32,15 @@
 
     <div class="stage">
       <Route path="/"><MapView /></Route>
-      <Route path="/lands/:id"><MapView /></Route>
     </div>
   </main>
 </Router>
 
 <!--
   LandDetail is driven entirely by the store, not by a Route. The URL is
-  already kept in sync by navigate() calls in MapView/LandDetail, and the
-  onMount block above restores the selection from the URL on deep link.
+  already kept in sync by navigate() calls in MapView/LandDetail (using the
+  ?selected-land-id= query param), and the onMount block above restores the
+  selection from the URL on deep link.
 -->
 {#if $selectedLandId}
   <LandDetail />
