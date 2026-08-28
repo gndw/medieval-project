@@ -1,0 +1,5 @@
+(
+    settlements: [
+        (id: "settlement-goldharbour", land_id: "land-1", population: 100),
+    ],
+)

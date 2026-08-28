@@ -6,11 +6,13 @@ mod http;
 use std::net::SocketAddr;
 
 use app::App;
-use content::startup;
+use content::{roads_startup, settlements_startup, startup};
 
 fn main() {
     let mut app = App::new();
     app.register_startup(startup);
+    app.register_startup(roads_startup);
+    app.register_startup(settlements_startup);
 
     // Bind address for the HTTP server. Override with MEDIEVAL_HTTP_ADDR.
     let addr: SocketAddr = std::env::var("MEDIEVAL_HTTP_ADDR")

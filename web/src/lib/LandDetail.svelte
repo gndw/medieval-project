@@ -1,8 +1,11 @@
 <script lang="ts">
-  import { lands, selectedLandId } from "./store";
+  import { lands, settlements, selectedLandId } from "./store";
   import { navigate } from "svelte-routing";
 
   let land = $derived($lands.find((l) => l.id === $selectedLandId) ?? null);
+  let settlement = $derived(
+    land ? $settlements.find((s) => s.land_id === land!.id) ?? null : null,
+  );
 
   function close() {
     selectedLandId.set(null);
@@ -34,6 +37,20 @@
       <dt>Border vertices</dt>
       <dd>{land.borders.length}</dd>
     </dl>
+
+    <section class="settlement">
+      <h3>Settlement</h3>
+      {#if settlement}
+        <dl>
+          <dt>ID</dt>
+          <dd><code>{settlement.id}</code></dd>
+          <dt>Population</dt>
+          <dd class="population">{settlement.population.toLocaleString()}</dd>
+        </dl>
+      {:else}
+        <p class="muted">No settlement inhabits these lands.</p>
+      {/if}
+    </section>
 
     <section class="borders">
       <h3>Borders</h3>
@@ -120,7 +137,14 @@
   .terrain-wetlands { color: #2f4a5a; }
   .terrain-forest  { color: #2f3d1c; }
 
-  .borders h3 {
+  .population {
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+
+  section h3 {
     font-family: var(--font-display);
     font-size: 1.1rem;
     margin: 1rem 0 0.5rem;
@@ -134,5 +158,10 @@
     font-size: 0.85rem;
     line-height: 1.45;
     color: var(--ink-soft);
+  }
+  .muted {
+    color: var(--ink-soft);
+    font-style: italic;
+    margin: 0;
   }
 </style>

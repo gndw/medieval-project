@@ -16,10 +16,8 @@
     }
   });
 
-  // Keep the URL in sync when the store changes via in-app navigation.
   $effect(() => {
-    // no-op: store updates are already driven by navigate() in MapView/LandDetail.
-    // This effect exists to make Svelte track the dependency.
+    // Track the store so the panel reactively appears / disappears.
     void $selectedLandId;
   });
 </script>
@@ -35,12 +33,17 @@
       <Route path="/"><MapView /></Route>
       <Route path="/lands/:id"><MapView /></Route>
     </div>
-
-    {#if $selectedLandId}
-      <Route path="/lands/:id"><LandDetail /></Route>
-    {/if}
   </main>
 </Router>
+
+<!--
+  LandDetail is driven entirely by the store, not by a Route. The URL is
+  already kept in sync by navigate() calls in MapView/LandDetail, and the
+  onMount block above restores the selection from the URL on deep link.
+-->
+{#if $selectedLandId}
+  <LandDetail />
+{/if}
 
 <style>
   .layout {

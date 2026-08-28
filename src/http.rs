@@ -8,6 +8,8 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use crate::components::core::StringId;
 use crate::components::land::{LandBorders, LandHolding, LandName, LandTerrain};
+use crate::components::road::{RoadBetween, RoadDistanceDays, RoadPoints};
+use crate::components::settlement::{SettlementLandId, SettlementPopulation};
 
 /// A handle to the shared ECS world used by HTTP handlers.
 ///
@@ -39,7 +41,40 @@ async fn home(State(world): State<SharedWorld>) -> Json<Value> {
         lands
     };
 
-    Json(json!({ "data": { "lands": lands } }))
+    let roads: Vec<Value> = {
+        let w = world.lock().expect("world mutex poisoned");
+        let mut roads = Vec::new();
+        for (id, points, between, days) in w
+            .query::<(&StringId, &RoadPoints, &RoadBetween, &RoadDistanceDays)>()
+            .iter()
+        {
+            roads.push(json!({
+                "id": id.0,
+                "points": points.0,
+                "between_land_ids": between.0,
+                "distance_days": days.0,
+            }));
+        }
+        roads
+    };
+
+    let settlements: Vec<Value> = {
+        let w = world.lock().expect("world mutex poisoned");
+        let mut settlements = Vec::new();
+        for (id, land_id, population) in w
+            .query::<(&StringId, &SettlementLandId, &SettlementPopulation)>()
+            .iter()
+        {
+            settlements.push(json!({
+                "id": id.0,
+                "land_id": land_id.0,
+                "population": population.0,
+            }));
+        }
+        settlements
+    };
+
+    Json(json!({ "data": { "lands": lands, "roads": roads, "settlements": settlements } }))
 }
 
 /// Build the full router: `/api/v1/*` → axum routes; everything else →
