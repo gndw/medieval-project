@@ -3,11 +3,10 @@ mod components;
 mod content;
 
 use app::App;
-use content::load;
+use content::Startup;
 
 fn main() {
-    let mut content = load();
     let mut app = App::New();
-    content.Startup(&mut app.world);
+    app.RegisterStartup(Startup);
     app.Run();
 }

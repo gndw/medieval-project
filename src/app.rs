@@ -6,20 +6,35 @@ use std::time::Duration;
 /// Top-level application state.
 pub struct App {
     pub world: World,
+    pub startups: Vec<Box<dyn FnMut(&mut World)>>,
 }
 
 impl App {
-    /// Create a new app with a fresh hecs world.
+    /// Create a new app with a fresh hecs world and no startup functions.
     pub fn New() -> Self {
         App {
             world: World::new(),
+            startups: Vec::new(),
         }
     }
 
+    /// Register a startup function. It will be invoked once, just before the
+    /// main loop starts. The function receives `&mut World` and can spawn
+    /// entities (or do any other one-shot setup).
+    pub fn RegisterStartup(&mut self, f: impl FnMut(&mut World) + 'static) {
+        self.startups.push(Box::new(f));
+    }
+
     /// Run the main loop, blocking until Ctrl+C (SIGINT) or SIGTERM.
-    /// Uses a Condvar so the main thread wakes immediately when the signal fires,
-    /// instead of having to wait out a long sleep.
+    /// First executes every registered startup function.
     pub fn Run(&mut self) {
+        // Run all startup functions before entering the loop.
+        for mut startup in self.startups.drain(..) {
+            startup(&mut self.world);
+        }
+
+        // Use a Condvar so the main thread wakes immediately when the signal
+        // fires, instead of having to wait out a long sleep.
         let pair = Arc::new((Mutex::new(true), Condvar::new()));
         {
             let pair = Arc::clone(&pair);

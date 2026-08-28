@@ -34,18 +34,17 @@ pub fn load() -> Content {
         .unwrap_or_else(|e| panic!("failed to parse {}: {}", path.display(), e))
 }
 
-impl Content {
-    /// Spawn one entity per land into the given world.
-    pub fn Startup(&mut self, world: &mut World) {
-        for land in self.lands.drain(..) {
-            let (hx, hy) = land.holding;
-            world.spawn((
-                StringId(land.id),
-                LandName(land.name),
-                LandTerrain(land.terrain),
-                LandHolding(hx, hy),
-                LandBorders(land.borders),
-            ));
-        }
+/// Load content from disk and spawn one entity per land into `world`.
+pub fn Startup(world: &mut World) {
+    let mut content = load();
+    for land in content.lands.drain(..) {
+        let (hx, hy) = land.holding;
+        world.spawn((
+            StringId(land.id),
+            LandName(land.name),
+            LandTerrain(land.terrain),
+            LandHolding(hx, hy),
+            LandBorders(land.borders),
+        ));
     }
 }
