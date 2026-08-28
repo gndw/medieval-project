@@ -35,7 +35,7 @@ pub fn load() -> Content {
 }
 
 /// Load content from disk and spawn one entity per land into `world`.
-pub fn Startup(world: &mut World) {
+pub fn startup(world: &mut World) {
     let mut content = load();
     for land in content.lands.drain(..) {
         let (hx, hy) = land.holding;

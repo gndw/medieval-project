@@ -11,7 +11,7 @@ pub struct App {
 
 impl App {
     /// Create a new app with a fresh hecs world and no startup functions.
-    pub fn New() -> Self {
+    pub fn new() -> Self {
         App {
             world: World::new(),
             startups: Vec::new(),
@@ -21,13 +21,13 @@ impl App {
     /// Register a startup function. It will be invoked once, just before the
     /// main loop starts. The function receives `&mut World` and can spawn
     /// entities (or do any other one-shot setup).
-    pub fn RegisterStartup(&mut self, f: impl FnMut(&mut World) + 'static) {
+    pub fn register_startup(&mut self, f: impl FnMut(&mut World) + 'static) {
         self.startups.push(Box::new(f));
     }
 
     /// Run the main loop, blocking until Ctrl+C (SIGINT) or SIGTERM.
     /// First executes every registered startup function.
-    pub fn Run(&mut self) {
+    pub fn run(&mut self) {
         // Run all startup functions before entering the loop.
         for mut startup in self.startups.drain(..) {
             startup(&mut self.world);
