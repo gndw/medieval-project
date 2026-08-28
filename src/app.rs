@@ -3,9 +3,13 @@ use std::io::Write;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
+/// Shared handle to the ECS world. Used both by the main loop (which will
+/// eventually run the Update schedule) and by the HTTP server thread.
+pub type SharedWorld = Arc<Mutex<World>>;
+
 /// Top-level application state.
 pub struct App {
-    pub world: World,
+    pub world: SharedWorld,
     pub startups: Vec<Box<dyn FnMut(&mut World)>>,
 }
 
@@ -13,7 +17,7 @@ impl App {
     /// Create a new app with a fresh hecs world and no startup functions.
     pub fn new() -> Self {
         App {
-            world: World::new(),
+            world: Arc::new(Mutex::new(World::new())),
             startups: Vec::new(),
         }
     }
@@ -25,12 +29,22 @@ impl App {
         self.startups.push(Box::new(f));
     }
 
+    /// Clone the shared world handle. Pass this to subsystems (e.g. the HTTP
+    /// server) that need to read or mutate entities from another thread.
+    pub fn world_handle(&self) -> SharedWorld {
+        Arc::clone(&self.world)
+    }
+
     /// Run the main loop, blocking until Ctrl+C (SIGINT) or SIGTERM.
     /// First executes every registered startup function.
+    ///
+    /// The loop body is intentionally empty for now — it is reserved for the
+    /// future Update schedule. The HTTP server runs on its own thread.
     pub fn run(&mut self) {
         // Run all startup functions before entering the loop.
         for mut startup in self.startups.drain(..) {
-            startup(&mut self.world);
+            let mut guard = self.world.lock().expect("world mutex poisoned");
+            startup(&mut *guard);
         }
 
         // Use a Condvar so the main thread wakes immediately when the signal
