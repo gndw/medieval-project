@@ -1,13 +1,15 @@
 use std::fs;
 use std::path::Path;
 
-use hecs::World;
 use serde::{Deserialize, Serialize};
 
+use crate::app::SharedWorld;
 use crate::components::core::StringId;
 use crate::components::land::{LandBorders, LandHolding, LandName, LandTerrain, Terrain};
 use crate::components::road::{RoadBetween, RoadDistanceDays, RoadPoints};
 use crate::components::settlement::{SettlementLandId, SettlementPopulation};
+
+const CONTENT_DIR: &str = "contents/base";
 
 /// A single land as defined in a content file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,59 +38,59 @@ pub struct Settlement {
     pub population: u32,
 }
 
-/// The master content structure. Loaded from `contents/base/lands.ron`.
+/// Aggregated content loaded from every `.ron` file under `contents/base/`.
+///
+/// Each file may declare any subset of `lands`, `roads`, or `settlements`;
+/// fields that are absent from a file default to empty vectors.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Content {
     pub lands: Vec<Land>,
+    pub roads: Vec<Road>,
+    pub settlements: Vec<Settlement>,
 }
 
-const CONTENT_PATH: &str = "contents/base/lands.ron";
-const ROADS_PATH: &str = "contents/base/roads.ron";
-const SETTLEMENTS_PATH: &str = "contents/base/settlements.ron";
-
-/// Load all land content from disk and return the deserialised `Content` value.
+/// Load all content from disk and return the deserialised `Content` value.
+///
+/// Reads every `.ron` file under `contents/base/`, parses each into a
+/// `Content`, and merges the results into a single `Content`. Files are
+/// processed in sorted order so repeated loads are deterministic.
 pub fn load() -> Content {
-    let path = Path::new(CONTENT_PATH);
-    let contents = fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("failed to read {}: {}", path.display(), e));
-    ron::from_str::<Content>(&contents)
-        .unwrap_or_else(|e| panic!("failed to parse {}: {}", path.display(), e))
+    let dir = Path::new(CONTENT_DIR);
+    let entries = fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("failed to read directory {}: {}", dir.display(), e));
+
+    let mut paths: Vec<_> = entries
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| {
+            p.is_file()
+                && p.extension().map(|ext| ext == "ron").unwrap_or(false)
+        })
+        .collect();
+    paths.sort();
+
+    let mut content = Content::default();
+    for path in &paths {
+        let raw = fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("failed to read {}: {}", path.display(), e));
+        let parsed = ron::from_str::<Content>(&raw)
+            .unwrap_or_else(|e| panic!("failed to parse {}: {}", path.display(), e));
+        content.lands.extend(parsed.lands);
+        content.roads.extend(parsed.roads);
+        content.settlements.extend(parsed.settlements);
+    }
+
+    content
 }
 
-/// Load road content from disk and return the deserialised road list.
-pub fn load_roads() -> Vec<Road> {
-    let path = Path::new(ROADS_PATH);
-    let contents = fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("failed to read {}: {}", path.display(), e));
-    ron::from_str::<RoadsFile>(&contents)
-        .map(|f| f.roads)
-        .unwrap_or_else(|e| panic!("failed to parse {}: {}", path.display(), e))
-}
+/// Load content and spawn lands, roads, and settlements as entities into `world`.
+pub fn startup(world: SharedWorld) {
+    let content = load();
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct RoadsFile {
-    roads: Vec<Road>,
-}
+    let mut world = world.lock().expect("world mutex poisoned");
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct SettlementsFile {
-    settlements: Vec<Settlement>,
-}
-
-/// Load settlement content from disk and return the deserialised list.
-pub fn load_settlements() -> Vec<Settlement> {
-    let path = Path::new(SETTLEMENTS_PATH);
-    let contents = fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("failed to read {}: {}", path.display(), e));
-    ron::from_str::<SettlementsFile>(&contents)
-        .map(|f| f.settlements)
-        .unwrap_or_else(|e| panic!("failed to parse {}: {}", path.display(), e))
-}
-
-/// Load land content from disk and spawn one entity per land into `world`.
-pub fn startup(world: &mut World) {
-    let mut content = load();
-    for land in content.lands.drain(..) {
+    for land in content.lands {
         let (hx, hy) = land.holding;
         world.spawn((
             StringId(land.id),
@@ -98,11 +100,8 @@ pub fn startup(world: &mut World) {
             LandBorders(land.borders),
         ));
     }
-}
 
-/// Load road content from disk and spawn one entity per road into `world`.
-pub fn roads_startup(world: &mut World) {
-    for road in load_roads() {
+    for road in content.roads {
         world.spawn((
             StringId(road.id),
             RoadPoints(road.points),
@@ -110,11 +109,8 @@ pub fn roads_startup(world: &mut World) {
             RoadDistanceDays(road.distance_days),
         ));
     }
-}
 
-/// Load settlement content from disk and spawn one entity per settlement into `world`.
-pub fn settlements_startup(world: &mut World) {
-    for s in load_settlements() {
+    for s in content.settlements {
         world.spawn((
             StringId(s.id),
             SettlementLandId(s.land_id),

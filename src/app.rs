@@ -10,7 +10,7 @@ pub type SharedWorld = Arc<Mutex<World>>;
 /// Top-level application state.
 pub struct App {
     pub world: SharedWorld,
-    pub startups: Vec<Box<dyn FnMut(&mut World)>>,
+    pub startups: Vec<Box<dyn FnMut(SharedWorld)>>,
 }
 
 impl App {
@@ -23,14 +23,18 @@ impl App {
     }
 
     /// Register a startup function. It will be invoked once, just before the
-    /// main loop starts. The function receives `&mut World` and can spawn
-    /// entities (or do any other one-shot setup).
-    pub fn register_startup(&mut self, f: impl FnMut(&mut World) + 'static) {
+    /// main loop starts. The function receives a `SharedWorld` handle and can
+    /// lock it (e.g. to spawn entities) or clone it (e.g. to move into a
+    /// spawned thread).
+    pub fn register_startup(&mut self, f: impl FnMut(SharedWorld) + 'static) {
         self.startups.push(Box::new(f));
     }
 
-    /// Clone the shared world handle. Pass this to subsystems (e.g. the HTTP
-    /// server) that need to read or mutate entities from another thread.
+    /// Clone the shared world handle. Pass this to subsystems (e.g. tests or
+    /// future features) that need to read or mutate entities from another
+    /// thread. Currently unused by the main binary but kept as part of the
+    /// public API.
+    #[allow(dead_code)]
     pub fn world_handle(&self) -> SharedWorld {
         Arc::clone(&self.world)
     }
@@ -41,10 +45,11 @@ impl App {
     /// The loop body is intentionally empty for now — it is reserved for the
     /// future Update schedule. The HTTP server runs on its own thread.
     pub fn run(&mut self) {
-        // Run all startup functions before entering the loop.
+        // Run all startup functions before entering the loop. Each one gets
+        // its own clone of the world handle so it can move the Arc into
+        // another thread if it needs to.
         for mut startup in self.startups.drain(..) {
-            let mut guard = self.world.lock().expect("world mutex poisoned");
-            startup(&mut *guard);
+            startup(Arc::clone(&self.world));
         }
 
         // Use a Condvar so the main thread wakes immediately when the signal

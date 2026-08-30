@@ -1,21 +1,14 @@
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
 
 use axum::{extract::State, routing::get, Json, Router};
-use hecs::World;
 use serde_json::{json, Value};
 use tower_http::services::{ServeDir, ServeFile};
 
+use crate::app::SharedWorld;
 use crate::components::core::StringId;
 use crate::components::land::{LandBorders, LandHolding, LandName, LandTerrain};
 use crate::components::road::{RoadBetween, RoadDistanceDays, RoadPoints};
 use crate::components::settlement::{SettlementLandId, SettlementPopulation};
-
-/// A handle to the shared ECS world used by HTTP handlers.
-///
-/// The same `Arc<Mutex<World>>` is owned by `App` and cloned into the HTTP
-/// thread so handlers always see the latest entity state.
-pub type SharedWorld = Arc<Mutex<World>>;
 
 /// `GET /api/v1/home` — returns all lands currently in the world, projected
 /// under `data.lands`. Reads the world on every request, so any mutation made
@@ -90,11 +83,26 @@ pub fn router(world: SharedWorld, static_dir: &'static str) -> Router {
     api.fallback_service(serve_dir)
 }
 
-/// Spawn the HTTP server on its own OS thread with its own tokio runtime.
+/// Read HTTP configuration from the environment, then spawn the HTTP server
+/// on its own OS thread (with its own tokio runtime). The thread binds the
+/// configured address and serves both the API routes and the static SPA
+/// directory until the process exits.
 ///
-/// The main thread's loop is reserved for the Update schedule, so we keep
-/// the server fully isolated. The server runs until the process exits.
-pub fn serve(world: SharedWorld, addr: SocketAddr, static_dir: &'static str) {
+/// Bind address: `MEDIEVAL_HTTP_ADDR` (defaults to `127.0.0.1:7777`).
+/// Static SPA directory: `MEDIEVAL_STATIC_DIR` (defaults to `web/dist`).
+pub fn startup(world: SharedWorld) {
+    // Bind address for the HTTP server. Override with MEDIEVAL_HTTP_ADDR.
+    let addr: SocketAddr = std::env::var("MEDIEVAL_HTTP_ADDR")
+        .unwrap_or_else(|_| "127.0.0.1:7777".into())
+        .parse()
+        .expect("invalid MEDIEVAL_HTTP_ADDR (expected e.g. 127.0.0.1:7777)");
+
+    // Directory where the built SPA lives. Override with MEDIEVAL_STATIC_DIR.
+    let static_dir: &'static str = Box::leak(
+        std::env::var("MEDIEVAL_STATIC_DIR").unwrap_or_else(|_| "web/dist".into())
+            .into_boxed_str(),
+    );
+
     std::thread::Builder::new()
         .name("medieval-http".into())
         .spawn(move || {
