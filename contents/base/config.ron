@@ -1,0 +1,4 @@
+(
+    calendar: (days_per_month: 30, months_per_year: 12),
+    date: (year: 1342, month: 3, day: 15),
+)
