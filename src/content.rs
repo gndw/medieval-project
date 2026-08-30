@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::app::SharedWorld;
+use crate::app::{SharedApp, SharedWorld};
 use crate::components::calendar::Calendar;
 use crate::components::core::StringId;
 use crate::components::date::Date;
@@ -97,7 +97,7 @@ pub fn load() -> Content {
 
 /// Load content and spawn lands, roads, settlements, and the time-system
 /// resource entities (`Calendar` and `Date`) into `world`.
-pub fn startup(world: SharedWorld) {
+pub fn startup(_app: SharedApp, world: SharedWorld) {
     let content = load();
 
     let mut world = world.lock().expect("world mutex poisoned");

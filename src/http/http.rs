@@ -4,7 +4,7 @@ use axum::extract::FromRef;
 use axum::{routing::get, Router};
 use tower_http::services::{ServeDir, ServeFile};
 
-use crate::app::{SharedPaused, SharedWorld};
+use crate::app::{SharedApp, SharedWorld};
 use crate::http::endpoints::date::{date, set_pause};
 use crate::http::endpoints::home::home;
 
@@ -12,8 +12,8 @@ use crate::http::endpoints::home::home;
 /// the piece they need instead of the whole struct.
 #[derive(Clone)]
 pub struct HttpState {
+    pub app: SharedApp,
     pub world: SharedWorld,
-    pub is_tick_paused: SharedPaused,
 }
 
 impl FromRef<HttpState> for SharedWorld {
@@ -22,9 +22,9 @@ impl FromRef<HttpState> for SharedWorld {
     }
 }
 
-impl FromRef<HttpState> for SharedPaused {
+impl FromRef<HttpState> for SharedApp {
     fn from_ref(state: &HttpState) -> Self {
-        SharedPaused::clone(&state.is_tick_paused)
+        SharedApp::clone(&state.app)
     }
 }
 
@@ -44,7 +44,7 @@ pub fn router(state: HttpState, static_dir: &'static str) -> Router {
 
 /// Spawn the HTTP server on its own OS thread with its own tokio runtime.
 /// Binds `MEDIEVAL_HTTP_ADDR` (default `127.0.0.1:7777`) and serves SPA routes.
-pub fn startup(world: SharedWorld, is_tick_paused: SharedPaused) {
+pub fn startup(app: SharedApp, world: SharedWorld) {
     // Bind address for the HTTP server. Override with MEDIEVAL_HTTP_ADDR.
     let addr: SocketAddr = std::env::var("MEDIEVAL_HTTP_ADDR")
         .unwrap_or_else(|_| "127.0.0.1:7777".into())
@@ -57,7 +57,7 @@ pub fn startup(world: SharedWorld, is_tick_paused: SharedPaused) {
             .into_boxed_str(),
     );
 
-    let state = HttpState { world, is_tick_paused };
+    let state = HttpState { app, world };
 
     std::thread::Builder::new()
         .name("medieval-http".into())

@@ -1,10 +1,10 @@
-use crate::app::SharedWorld;
+use crate::app::{SharedApp, SharedWorld};
 use crate::components::calendar::Calendar;
 use crate::components::date::Date;
 
 /// Advance the singleton `Date` by one day, wrapping at month/year
 /// boundaries per the `Calendar`. No-op if no `Calendar` entity exists.
-pub fn tick(world: SharedWorld) {
+pub fn tick(_app: SharedApp, world: SharedWorld) {
     let world = world.lock().expect("world mutex poisoned");
 
     // Read the calendar first (immutable borrow) so its `QueryBorrow` is

@@ -12,37 +12,67 @@ pub const TICK_PER_SECONDS: u64 = 1;
 /// eventually run the Update schedule) and by the HTTP server thread.
 pub type SharedWorld = Arc<Mutex<World>>;
 
-/// Shared pause flag. Set by the HTTP layer, read by `App::run` each tick.
-pub type SharedPaused = Arc<AtomicBool>;
+/// Shared handle to the app state, cloned into every startup, tick, and
+/// the HTTP server thread.
+pub type SharedApp = Arc<AppState>;
+
+/// State shared by startups, ticks, and handlers. Interior mutability so
+/// every holder can read and write through an `&self`.
+pub struct AppState {
+    is_tick_paused: AtomicBool,
+}
+
+impl AppState {
+    fn new() -> Self {
+        AppState { is_tick_paused: AtomicBool::new(false) }
+    }
+
+    /// Pause or resume the tick loop. Callable from any thread.
+    pub fn set_pause(&self, is_paused: bool) {
+        self.is_tick_paused.store(is_paused, Ordering::Relaxed);
+    }
+
+    /// Whether the tick loop is currently paused.
+    pub fn is_paused(&self) -> bool {
+        self.is_tick_paused.load(Ordering::Relaxed)
+    }
+}
 
 /// Top-level application state.
 pub struct App {
+    pub state: SharedApp,
     pub world: SharedWorld,
-    pub is_tick_paused: SharedPaused,
-    pub startups: Vec<Box<dyn FnMut(SharedWorld)>>,
-    pub ticks: Vec<Box<dyn FnMut(SharedWorld)>>,
+    pub startups: Vec<Box<dyn FnMut(SharedApp, SharedWorld)>>,
+    pub ticks: Vec<Box<dyn FnMut(SharedApp, SharedWorld)>>,
 }
 
 impl App {
     /// Create a new app with a fresh hecs world and no startup or tick functions.
     pub fn new() -> Self {
         App {
+            state: Arc::new(AppState::new()),
             world: Arc::new(Mutex::new(World::new())),
-            is_tick_paused: Arc::new(AtomicBool::new(false)),
             startups: Vec::new(),
             ticks: Vec::new(),
         }
     }
 
+    /// Pause or resume the tick loop from the owning thread.
+    /// Subsystems call `set_pause` on their own `SharedApp` handle.
+    #[allow(dead_code)]
+    pub fn set_pause(&self, is_paused: bool) {
+        self.state.set_pause(is_paused);
+    }
+
     /// Register a startup function invoked once before the main loop.
-    /// The function receives a `SharedWorld` handle it can lock or move into a thread.
-    pub fn register_startup(&mut self, f: impl FnMut(SharedWorld) + 'static) {
+    /// It receives handles it can lock, mutate, or move into a thread.
+    pub fn register_startup(&mut self, f: impl FnMut(SharedApp, SharedWorld) + 'static) {
         self.startups.push(Box::new(f));
     }
 
     /// Register a tick function. It will be invoked once per `TICK_PER_SECONDS`
     /// from `run`'s main loop, after the startup functions have run.
-    pub fn register_tick(&mut self, f: impl FnMut(SharedWorld) + 'static) {
+    pub fn register_tick(&mut self, f: impl FnMut(SharedApp, SharedWorld) + 'static) {
         self.ticks.push(Box::new(f));
     }
 
@@ -53,19 +83,20 @@ impl App {
         Arc::clone(&self.world)
     }
 
-    /// Clone the pause flag for subsystems that toggle it, such as the
-    /// HTTP server thread.
-    pub fn pause_handle(&self) -> SharedPaused {
-        Arc::clone(&self.is_tick_paused)
+    /// Clone the shared app-state handle for subsystems that need it from
+    /// another thread.
+    #[allow(dead_code)]
+    pub fn app_handle(&self) -> SharedApp {
+        Arc::clone(&self.state)
     }
 
     /// Run the main loop until SIGINT/SIGTERM, running all ticks every
     /// `TICK_PER_SECONDS`. The loop body is reserved for the future Update schedule.
     pub fn run(&mut self) {
-        // Run all startup functions before entering the loop, cloning
-        // the world handle per call so each can move the Arc into a thread.
+        // Run all startup functions before entering the loop, cloning the
+        // handles per call so each can move the Arcs into a thread.
         for mut startup in self.startups.drain(..) {
-            startup(Arc::clone(&self.world));
+            startup(Arc::clone(&self.state), Arc::clone(&self.world));
         }
 
         // Use a Condvar so the main thread wakes immediately when the signal
@@ -101,14 +132,14 @@ impl App {
 
             // Skip the ticks while paused. The loop keeps waiting on the
             // condvar so Ctrl+C still wakes us immediately.
-            if self.is_tick_paused.load(Ordering::Relaxed) {
+            if self.state.is_paused() {
                 continue;
             }
 
             // Otherwise, fire every registered tick function. Each one gets
-            // its own clone of the world handle.
+            // its own clones of the shared handles.
             for tick in self.ticks.iter_mut() {
-                tick(Arc::clone(&self.world));
+                tick(Arc::clone(&self.state), Arc::clone(&self.world));
             }
         }
 
