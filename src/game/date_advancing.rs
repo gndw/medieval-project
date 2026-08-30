@@ -2,19 +2,13 @@ use crate::app::SharedWorld;
 use crate::components::calendar::Calendar;
 use crate::components::date::Date;
 
-/// Advance the in-game date by one day. Pulls the singleton `Calendar` and
-/// `Date` entities from the world and rolls the date forward, wrapping at
-/// month/year boundaries according to the calendar definition.
-///
-/// If no `Calendar` entity exists, this tick is a no-op (there is nothing
-/// to advance against).
+/// Advance the singleton `Date` by one day, wrapping at month/year
+/// boundaries per the `Calendar`. No-op if no `Calendar` entity exists.
 pub fn tick(world: SharedWorld) {
     let world = world.lock().expect("world mutex poisoned");
 
-    // Read the calendar first (immutable borrow) so we know the month/year
-    // lengths. The `QueryBorrow` returned by `query` is dropped at the end
-    // of this statement, releasing the immutable borrow before we open the
-    // mutable borrow below.
+    // Read the calendar first (immutable borrow) so its `QueryBorrow` is
+    // dropped before we open the mutable borrow on `Date` below.
     let Some(calendar) = world
         .query::<&Calendar>()
         .iter()

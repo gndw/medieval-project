@@ -1,7 +1,4 @@
-/// A unique string identifier attached to an entity.
-///
-/// Used to look up entities by ID — for example, when resolving the
-/// `LandBorders` list (which contains string IDs of neighbouring lands)
-/// against the world's entities.
+/// A unique string identifier attached to an entity, used to look it up by ID
+/// (e.g. resolving `LandBorders` neighbour lists against world entities).
 #[derive(Debug, Clone)]
 pub struct StringId(pub String);

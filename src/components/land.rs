@@ -1,10 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// Types of terrain a land can have.
-///
-/// Mod files store terrain as a lowercase string (e.g. `"plains"`), so we use
-/// custom `Serialize`/`Deserialize` impls to map between strings and variants
-/// rather than relying on serde's default externally-tagged enum form.
+/// Types of terrain a land can have. Serialised as a lowercase string
+/// (e.g. `"plains"`) via custom `Serialize`/`Deserialize` impls, not serde's default enum form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Terrain {
     Plains,

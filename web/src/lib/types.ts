@@ -1,7 +1,4 @@
-/**
- * Mirrors the JSON shape returned by the Rust backend at /api/v1/home.
- * Keep this in sync with src/http.rs in the backend.
- */
+/** Mirrors the JSON shape from Rust /api/v1/home. Keep in sync with src/http.rs. */
 
 export type Terrain = "plains" | "wetlands" | "forest";
 

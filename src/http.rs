@@ -10,9 +10,8 @@ use crate::components::land::{LandBorders, LandHolding, LandName, LandTerrain};
 use crate::components::road::{RoadBetween, RoadDistanceDays, RoadPoints};
 use crate::components::settlement::{SettlementLandId, SettlementPopulation};
 
-/// `GET /api/v1/home` — returns all lands currently in the world, projected
-/// under `data.lands`. Reads the world on every request, so any mutation made
-/// by the Update schedule is immediately visible to clients.
+/// `GET /api/v1/home` — returns all lands, roads, and settlements in `data`.
+/// Re-reads the world on every request so mutations are immediately visible.
 async fn home(State(world): State<SharedWorld>) -> Json<Value> {
     // Acquire the lock, build the response payload, then drop the guard
     // before returning so we never hold the lock across an `.await`.
@@ -83,13 +82,8 @@ pub fn router(world: SharedWorld, static_dir: &'static str) -> Router {
     api.fallback_service(serve_dir)
 }
 
-/// Read HTTP configuration from the environment, then spawn the HTTP server
-/// on its own OS thread (with its own tokio runtime). The thread binds the
-/// configured address and serves both the API routes and the static SPA
-/// directory until the process exits.
-///
-/// Bind address: `MEDIEVAL_HTTP_ADDR` (defaults to `127.0.0.1:7777`).
-/// Static SPA directory: `MEDIEVAL_STATIC_DIR` (defaults to `web/dist`).
+/// Spawn the HTTP server on its own OS thread with its own tokio runtime.
+/// Binds `MEDIEVAL_HTTP_ADDR` (default `127.0.0.1:7777`) and serves SPA routes.
 pub fn startup(world: SharedWorld) {
     // Bind address for the HTTP server. Override with MEDIEVAL_HTTP_ADDR.
     let addr: SocketAddr = std::env::var("MEDIEVAL_HTTP_ADDR")

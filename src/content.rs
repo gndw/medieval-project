@@ -41,13 +41,7 @@ pub struct Settlement {
 }
 
 /// Aggregated content loaded from every `.ron` file under `contents/base/`.
-///
-/// Each file may declare any subset of `lands`, `roads`, `settlements`,
-/// `calendar`, or `date`; fields that are absent from a file fall back to
-/// their `Default` values. `config.ron` is the only file that supplies the
-/// time-system fields (`calendar` and `date`); the entity files
-/// (`lands.ron`, `roads.ron`, `settlements.ron`) parse with their default
-/// (zero) values for those fields, which the merge logic then ignores.
+/// Each file may declare any subset of fields; absent ones fall back to `Default`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Content {
@@ -58,14 +52,8 @@ pub struct Content {
     pub date: Date,
 }
 
-/// Load all content from disk and return the deserialised `Content` value.
-///
-/// Reads every `.ron` file under `contents/base/`, parses each into a
-/// `Content`, and merges the results into a single `Content`. Files are
-/// processed in sorted order so repeated loads are deterministic. Vector
-/// fields are concatenated; `calendar` and `date` use a "first non-default
-/// wins" rule, so `config.ron` (which sorts first) supplies those values
-/// and the zero defaults from the entity files are ignored.
+/// Load all `.ron` content from `contents/base/` and merge into one `Content`.
+/// Files are read in sorted order; vectors concat, scalars use first-non-default.
 pub fn load() -> Content {
     let dir = Path::new(CONTENT_DIR);
     let entries = fs::read_dir(dir)
@@ -98,10 +86,8 @@ pub fn load() -> Content {
         }
     }
 
-    // `config.ron` is required to supply a starting `date`; otherwise the
-    // game has no time origin. We validate here (rather than relying on RON
-    // to reject a missing file) because `#[serde(default)]` on `Content`
-    // lets files quietly fall back to zero defaults.
+    // Require a starting `date` from config.ron; serde(default) would
+    // otherwise silently fall back to zeros and leave the game with no origin.
     if content.date == Date::default() {
         panic!("contents/base/config.ron must define a `date` entry");
     }
@@ -144,11 +130,8 @@ pub fn startup(world: SharedWorld) {
         ));
     }
 
-    // Spawn singleton resource entities for the time system. Each component
-    // is attached to its own entity so game logic can query for `&Date` or
-    // `&Calendar` independently. `Date` is required to be present in
-    // `config.ron` (`load` panics otherwise); the runtime check here is
-    // kept defensively. `Calendar` falls back to its `Default` if absent.
+    // Spawn singleton resource entities for the time system, one per
+    // component, so game logic can query for `&Date` or `&Calendar` independently.
     world.spawn((content.calendar,));
     if content.date != Date::default() {
         world.spawn((content.date,));

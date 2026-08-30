@@ -181,11 +181,8 @@
         <feDisplacementMap in="SourceGraphic" scale="3" />
       </filter>
 
-      <!--
-        Settlement icon: small castle silhouette.
-        Drawn so y=0 is the ground line. Width 24, height 14.
-        Used at each land's holding point via <use>.
-      -->
+      <!-- Settlement icon: castle silhouette drawn so y=0 is the ground line,
+           used at each land's holding point via <use>. -->
       <symbol id="settlement" viewBox="-12 -14 24 14" overflow="visible">
         <g fill="var(--ink)" stroke="var(--ink)" stroke-linejoin="miter">
           <!-- left flanking tower -->

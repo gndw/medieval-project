@@ -36,12 +36,7 @@
   </main>
 </Router>
 
-<!--
-  LandDetail is driven entirely by the store, not by a Route. The URL is
-  already kept in sync by navigate() calls in MapView/LandDetail (using the
-  ?selected-land-id= query param), and the onMount block above restores the
-  selection from the URL on deep link.
--->
+<!-- LandDetail is store-driven, not a Route. URL is kept in sync by MapView/LandDetail's navigate() calls; onMount above restores selection on deep link. -->
 {#if $selectedLandId}
   <LandDetail />
 {/if}
