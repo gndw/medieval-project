@@ -12,7 +12,12 @@ use http::startup as http_startup;
 fn main() {
     let mut app = App::new();
     app.register_startup(content_startup);
-    app.register_startup(http_startup);
+
+    // The HTTP layer needs the pause flag as well as the world, so it is
+    // registered through a closure rather than as a bare fn pointer.
+    let is_tick_paused = app.pause_handle();
+    app.register_startup(move |world| http_startup(world, is_tick_paused.clone()));
+
     app.register_tick(date_advancing_tick);
     app.run();
 }

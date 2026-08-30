@@ -1,5 +1,6 @@
 use hecs::World;
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
@@ -11,9 +12,13 @@ pub const TICK_PER_SECONDS: u64 = 1;
 /// eventually run the Update schedule) and by the HTTP server thread.
 pub type SharedWorld = Arc<Mutex<World>>;
 
+/// Shared pause flag. Set by the HTTP layer, read by `App::run` each tick.
+pub type SharedPaused = Arc<AtomicBool>;
+
 /// Top-level application state.
 pub struct App {
     pub world: SharedWorld,
+    pub is_tick_paused: SharedPaused,
     pub startups: Vec<Box<dyn FnMut(SharedWorld)>>,
     pub ticks: Vec<Box<dyn FnMut(SharedWorld)>>,
 }
@@ -23,6 +28,7 @@ impl App {
     pub fn new() -> Self {
         App {
             world: Arc::new(Mutex::new(World::new())),
+            is_tick_paused: Arc::new(AtomicBool::new(false)),
             startups: Vec::new(),
             ticks: Vec::new(),
         }
@@ -45,6 +51,12 @@ impl App {
     #[allow(dead_code)]
     pub fn world_handle(&self) -> SharedWorld {
         Arc::clone(&self.world)
+    }
+
+    /// Clone the pause flag for subsystems that toggle it, such as the
+    /// HTTP server thread.
+    pub fn pause_handle(&self) -> SharedPaused {
+        Arc::clone(&self.is_tick_paused)
     }
 
     /// Run the main loop until SIGINT/SIGTERM, running all ticks every
@@ -85,6 +97,12 @@ impl App {
             // If the wakeup was from Ctrl+C, skip the ticks and exit.
             if !*running {
                 break;
+            }
+
+            // Skip the ticks while paused. The loop keeps waiting on the
+            // condvar so Ctrl+C still wakes us immediately.
+            if self.is_tick_paused.load(Ordering::Relaxed) {
+                continue;
             }
 
             // Otherwise, fire every registered tick function. Each one gets
