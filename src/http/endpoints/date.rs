@@ -13,9 +13,12 @@ pub struct PausePayload {
     pub is_paused: bool,
 }
 
-/// `GET /api/v1/date` — returns the singleton game date in `data`.
-/// `data` is `null` when no `Date` entity exists yet.
-pub async fn date(State(world): State<SharedWorld>) -> Json<Value> {
+/// `GET /api/v1/date` — returns the game date and the pause flag.
+/// `data.date` is `null` when no `Date` entity exists yet.
+pub async fn date(
+    State(world): State<SharedWorld>,
+    State(is_tick_paused): State<SharedPaused>,
+) -> Json<Value> {
     // Copy the date out and drop the guard before returning so the lock
     // is never held across an `.await`.
     let date: Option<Date> = {
@@ -23,12 +26,17 @@ pub async fn date(State(world): State<SharedWorld>) -> Json<Value> {
         w.query::<&Date>().iter().next().copied()
     };
 
-    let data = match date {
+    let date = match date {
         Some(d) => json!({ "year": d.year, "month": d.month, "day": d.day }),
         None => Value::Null,
     };
 
-    Json(json!({ "data": data }))
+    Json(json!({
+        "data": {
+            "date": date,
+            "is_paused": is_tick_paused.load(Ordering::Relaxed),
+        }
+    }))
 }
 
 /// `POST /api/v1/date` — sets `App::is_tick_paused` from `is_paused`.

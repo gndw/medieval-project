@@ -45,6 +45,13 @@ export interface GameDate {
 }
 
 export interface DateResponse {
-  /** Null until the world has a Date entity. */
-  data: GameDate | null;
+  data: {
+    /** Null until the world has a Date entity. */
+    date: GameDate | null;
+    is_paused: boolean;
+  };
+}
+
+export interface PauseResponse {
+  data: { is_paused: boolean };
 }

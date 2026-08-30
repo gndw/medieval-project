@@ -39,8 +39,8 @@ try {
   log("screenshot saved: web/e2e/01-map.png");
 
   // ---- Verify the banner shows the in-game date and that it advances ----
-  await page.waitForSelector(".game-date:not(.pending)", { timeout: 5000 });
-  const dateText = (await page.locator(".game-date").textContent())?.trim();
+  await page.waitForSelector(".date-value", { timeout: 5000 });
+  const dateText = (await page.locator(".date-value").textContent())?.trim();
   log("date text:", dateText);
   const parse = (t) => {
     const m = t?.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
@@ -55,18 +55,54 @@ try {
   // Backend ticks once per second, so the day must change within ~4s.
   const changed = await page
     .waitForFunction(
-      (before) => document.querySelector(".game-date")?.textContent?.trim() !== before,
+      (before) => document.querySelector(".date-value")?.textContent?.trim() !== before,
       dateText,
       { timeout: 4000 },
     )
     .then(() => true)
     .catch(() => false);
   if (!changed) fail(`date did not advance within 4s (stuck at '${dateText}')`);
-  const after = parse((await page.locator(".game-date").textContent())?.trim());
+  const after = parse((await page.locator(".date-value").textContent())?.trim());
   log("date advanced:", JSON.stringify(first), "->", JSON.stringify(after));
 
   await page.screenshot({ path: "web/e2e/04-date.png", fullPage: true });
   log("screenshot saved: web/e2e/04-date.png");
+
+  // ---- Spacebar pauses the tick; the badge appears and the date freezes ----
+  log("pressing space to pause");
+  await page.keyboard.press("Space");
+  await page.waitForSelector(".badge", { timeout: 3000 });
+
+  const paused = (await page.locator(".date-value").textContent())?.trim();
+  await page.waitForTimeout(3000);
+  const stillPaused = (await page.locator(".date-value").textContent())?.trim();
+  log("paused at:", paused, "after 3s:", stillPaused);
+  if (paused !== stillPaused) fail(`date advanced while paused: ${paused} -> ${stillPaused}`);
+
+  // The backend must agree, not just the UI.
+  const apiPaused = await page.evaluate(async () => {
+    const r = await fetch("/api/v1/date");
+    return (await r.json()).data.is_paused;
+  });
+  if (apiPaused !== true) fail(`GET /api/v1/date reported is_paused=${apiPaused}, expected true`);
+
+  await page.screenshot({ path: "web/e2e/05-paused.png", fullPage: true });
+  log("screenshot saved: web/e2e/05-paused.png");
+
+  // ---- Spacebar again resumes ----
+  log("pressing space to resume");
+  await page.keyboard.press("Space");
+  await page.waitForSelector(".badge", { state: "detached", timeout: 3000 });
+  const resumed = await page
+    .waitForFunction(
+      (before) => document.querySelector(".date-value")?.textContent?.trim() !== before,
+      stillPaused,
+      { timeout: 4000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  if (!resumed) fail(`date did not resume within 4s (stuck at '${stillPaused}')`);
+  log("resumed at:", (await page.locator(".date-value").textContent())?.trim());
 
   // ---- Click Goldharbour (has a settlement, pop 100) ----
   log("clicking Goldharbour");
