@@ -1,0 +1,9 @@
+(
+    resources: [
+        (id: "resource-wheat", name: "wheat"),
+        (id: "resource-wood", name: "wood"),
+        (id: "resource-grain", name: "grain"),
+        (id: "resource-bread", name: "bread"),
+        (id: "resource-ale", name: "ale"),
+    ],
+)

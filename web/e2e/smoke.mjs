@@ -112,10 +112,22 @@ try {
   const heading = await page.locator("aside.panel h2").textContent();
   if (heading?.trim() !== "Goldharbour") fail(`expected panel heading 'Goldharbour', got '${heading}'`);
 
-  // Settlement block should show population 100.
-  const popText = await page.locator(".population").textContent();
-  log("population text:", popText);
-  if (!popText?.includes("100")) fail(`expected population to include '100', got '${popText}'`);
+  // Settlement block should list 5 inventories, 9 populations, 5 workplaces.
+  const invRows = await page.locator("table.inventories tbody tr").count();
+  const popRows = await page.locator("ul.populations li").count();
+  const workRows = await page.locator("ul.workplaces li").count();
+  log(`inventories=${invRows} populations=${popRows} workplaces=${workRows}`);
+  if (invRows !== 5) fail(`expected 5 inventory rows, got ${invRows}`);
+  if (popRows !== 9) fail(`expected 9 population rows, got ${popRows}`);
+  if (workRows !== 5) fail(`expected 5 workplace rows, got ${workRows}`);
+
+  // Spot-check the bakery's two input rows are present.
+  const invResources = await page.locator("table.inventories tbody tr td:first-child code").allTextContents();
+  if (!invResources.includes("resource-wheat") || !invResources.includes("resource-wood") ||
+      !invResources.includes("resource-grain") || !invResources.includes("resource-bread") ||
+      !invResources.includes("resource-ale")) {
+    fail(`expected all 5 resource ids in inventory table, got ${JSON.stringify(invResources)}`);
+  }
 
   await page.screenshot({ path: "web/e2e/02-goldharbour.png", fullPage: true });
   log("screenshot saved: web/e2e/02-goldharbour.png");

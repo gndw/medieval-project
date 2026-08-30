@@ -1,0 +1,9 @@
+(
+    professions: [
+        (id: "profession-farmer", name: "farmer"),
+        (id: "profession-wood-cutter", name: "wood cutter"),
+        (id: "profession-miller", name: "miller"), 
+        (id: "profession-baker", name: "baker"), 
+        (id: "profession-brewer", name: "brewer"), 
+    ],
+)

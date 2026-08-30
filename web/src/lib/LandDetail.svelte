@@ -44,9 +44,60 @@
         <dl>
           <dt>ID</dt>
           <dd><code>{settlement.id}</code></dd>
-          <dt>Population</dt>
-          <dd class="population">{settlement.population.toLocaleString()}</dd>
         </dl>
+
+        {#if settlement.inventories.length > 0}
+          <h4 class="children-title">
+            Inventories
+            <span class="count">{settlement.inventories.length}</span>
+          </h4>
+          <table class="children inventories">
+            <thead>
+              <tr><th>Resource</th><th class="num">Quantity</th></tr>
+            </thead>
+            <tbody>
+              {#each settlement.inventories as inv (inv.id)}
+                <tr>
+                  <td><code>{inv.resource_id}</code></td>
+                  <td class="num">{inv.quantity.toLocaleString()}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
+
+        {#if settlement.populations.length > 0}
+          <h4 class="children-title">
+            Populations
+            <span class="count">{settlement.populations.length}</span>
+          </h4>
+          <ul class="children populations">
+            {#each settlement.populations as pop (pop.id)}
+              <li>
+                <code>{pop.id}</code>
+                <span class="muted-inline">— {pop.profession_id}</span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+
+        {#if settlement.workplaces.length > 0}
+          <h4 class="children-title">
+            Workplaces
+            <span class="count">{settlement.workplaces.length}</span>
+          </h4>
+          <ul class="children workplaces">
+            {#each settlement.workplaces as work (work.id)}
+              <li>
+                <code>{work.id}</code>
+                <div class="refs">
+                  production: <code>{work.production_id}</code><br />
+                  staffed by: <code>{work.population_id}</code>
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {/if}
       {:else}
         <p class="muted">No settlement inhabits these lands.</p>
       {/if}
@@ -137,13 +188,6 @@
   .terrain-wetlands { color: #2f4a5a; }
   .terrain-forest  { color: #2f3d1c; }
 
-  .population {
-    font-family: var(--font-display);
-    font-size: 1.4rem;
-    color: var(--accent);
-    letter-spacing: 0.02em;
-  }
-
   section h3 {
     font-family: var(--font-display);
     font-size: 1.1rem;
@@ -163,5 +207,69 @@
     color: var(--ink-soft);
     font-style: italic;
     margin: 0;
+  }
+
+  .children-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0.9rem 0 0.35rem;
+    padding-bottom: 0.2rem;
+    border-bottom: 1px dashed var(--ink-faint);
+    font-family: var(--font-smallcaps);
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+  }
+  .count {
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+  }
+
+  table.children {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+  }
+  table.children th,
+  table.children td {
+    text-align: left;
+    padding: 0.2rem 0.3rem;
+    border-bottom: 1px solid rgba(61, 40, 23, 0.12);
+  }
+  table.children th {
+    font-family: var(--font-smallcaps);
+    color: var(--ink-soft);
+    font-weight: normal;
+    letter-spacing: 0.04em;
+    border-bottom-color: var(--ink-soft);
+  }
+  table.children td.num,
+  table.children th.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ul.children {
+    list-style: none;
+    margin: 0 0 0.5rem;
+    padding: 0;
+  }
+  ul.children li {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid rgba(61, 40, 23, 0.12);
+    font-size: 0.9rem;
+  }
+  ul.children li:last-child { border-bottom: none; }
+  .muted-inline {
+    color: var(--ink-soft);
+  }
+  .refs {
+    margin-top: 0.15rem;
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+    line-height: 1.4;
   }
 </style>

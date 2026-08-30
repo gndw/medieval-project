@@ -1,5 +1,33 @@
 (
     settlements: [
-        (id: "settlement-goldharbour", land_id: "land-1", population: 100),
+        (
+            id: "settlement-goldharbour",
+            land_id: "land-1",
+            inventories: [
+                (id: "res-goldharbour-1", resource_id: "resource-wheat", quantity: 500),
+                (id: "res-goldharbour-2", resource_id: "resource-wood", quantity: 250),
+                (id: "res-goldharbour-3", resource_id: "resource-grain", quantity: 150),
+                (id: "res-goldharbour-4", resource_id: "resource-bread", quantity: 60),
+                (id: "res-goldharbour-5", resource_id: "resource-ale", quantity: 80),
+            ],
+            populations: [
+                (id: "pop-goldharbour-1", profession_id: "profession-farmer"),
+                (id: "pop-goldharbour-2", profession_id: "profession-farmer"),
+                (id: "pop-goldharbour-3", profession_id: "profession-farmer"),
+                (id: "pop-goldharbour-4", profession_id: "profession-farmer"),
+                (id: "pop-goldharbour-5", profession_id: "profession-wood-cutter"),
+                (id: "pop-goldharbour-6", profession_id: "profession-wood-cutter"),
+                (id: "pop-goldharbour-7", profession_id: "profession-miller"),
+                (id: "pop-goldharbour-8", profession_id: "profession-baker"),
+                (id: "pop-goldharbour-9", profession_id: "profession-brewer"),
+            ],
+            workplaces: [
+                (id: "work-goldharbour-1", production_id: "production-farm", population_id: "pop-goldharbour-1"),
+                (id: "work-goldharbour-2", production_id: "production-forest", population_id: "pop-goldharbour-5"),
+                (id: "work-goldharbour-3", production_id: "production-mill", population_id: "pop-goldharbour-7"),
+                (id: "work-goldharbour-4", production_id: "production-bakery", population_id: "pop-goldharbour-8"),
+                (id: "work-goldharbour-5", production_id: "production-brewery", population_id: "pop-goldharbour-9"),
+            ],
+        ),
     ],
 )

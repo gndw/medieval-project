@@ -1,6 +1,12 @@
 pub mod calendar;
 pub mod core;
 pub mod date;
+pub mod inventory;
 pub mod land;
+pub mod population;
+pub mod production;
+pub mod profession;
+pub mod resource;
 pub mod road;
 pub mod settlement;
+pub mod workplace;

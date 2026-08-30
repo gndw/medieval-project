@@ -1,0 +1,59 @@
+(
+    productions: [
+        (
+            id: "production-farm",
+            name: "farm",
+            profession_id: "profession-farmer",
+            produce_cycle_days: 10,
+            produces: [
+                (id: "resource-wheat", quantity: 100),
+            ],
+        ),
+        (
+            id: "production-forest",
+            name: "forest",
+            profession_id: "profession-wood-cutter",
+            produce_cycle_days: 4,
+            produces: [
+                (id: "resource-wood", quantity: 25),
+            ],
+        ),
+        (
+            id: "production-mill",
+            name: "mill",
+            profession_id: "profession-miller",
+            consumes: [
+                (id: "resource-wheat", quantity: 5),
+            ],
+            produce_cycle_days: 1,
+            produces: [
+                (id: "resource-grain", quantity: 5),
+            ],
+        ),
+        (
+            id: "production-bakery",
+            name: "bakery",
+            profession_id: "profession-baker",
+            consumes: [
+                (id: "resource-grain", quantity: 5),
+                (id: "resource-wood", quantity: 5),
+            ],
+            produce_cycle_days: 2,
+            produces: [
+                (id: "resource-bread", quantity: 10),
+            ],
+        ),
+        (
+            id: "production-brewery",
+            name: "brewery",
+            profession_id: "profession-brewer",
+            consumes: [
+                (id: "resource-grain", quantity: 5),
+            ],
+            produce_cycle_days: 3,
+            produces: [
+                (id: "resource-ale", quantity: 5),
+            ],
+        ),
+    ],
+)

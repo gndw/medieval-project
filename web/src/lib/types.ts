@@ -22,11 +22,30 @@ export interface Road {
   distance_days: number;
 }
 
+export interface Inventory {
+  id: string;
+  resource_id: string;
+  quantity: number;
+}
+
+export interface Population {
+  id: string;
+  profession_id: string;
+}
+
+export interface Workplace {
+  id: string;
+  production_id: string;
+  population_id: string;
+}
+
 export interface Settlement {
   id: string;
   /** String ID of the land this settlement belongs to. */
   land_id: string;
-  population: number;
+  inventories: Inventory[];
+  populations: Population[];
+  workplaces: Workplace[];
 }
 
 export interface HomeResponse {

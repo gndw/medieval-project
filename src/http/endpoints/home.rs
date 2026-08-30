@@ -3,9 +3,14 @@ use serde_json::{json, Value};
 
 use crate::app::SharedWorld;
 use crate::components::core::StringId;
+use crate::components::inventory::{InventoryQuantity, InventoryResourceId};
 use crate::components::land::{LandBorders, LandHolding, LandName, LandTerrain};
+use crate::components::population::PopulationProfessionId;
 use crate::components::road::{RoadBetween, RoadDistanceDays, RoadPoints};
-use crate::components::settlement::{SettlementLandId, SettlementPopulation};
+use crate::components::settlement::{
+    SettlementInventories, SettlementLandId, SettlementPopulations, SettlementWorkplaces,
+};
+use crate::components::workplace::{WorkplacePopulationId, WorkplaceProductionId};
 
 /// `GET /api/v1/home` — returns all lands, roads, and settlements in `data`.
 /// Re-reads the world on every request so mutations are immediately visible.
@@ -50,14 +55,76 @@ pub async fn home(State(world): State<SharedWorld>) -> Json<Value> {
     let settlements: Vec<Value> = {
         let w = world.lock().expect("world mutex poisoned");
         let mut settlements = Vec::new();
-        for (id, land_id, population) in w
-            .query::<(&StringId, &SettlementLandId, &SettlementPopulation)>()
-            .iter()
-        {
+
+        // Collect owned copies of the per-settlement data inside a scope so the
+        // `QueryBorrow` is released before we do per-child `w.get()` lookups.
+        struct Row {
+            id: String,
+            land_id: String,
+            inventories: Vec<hecs::Entity>,
+            populations: Vec<hecs::Entity>,
+            workplaces: Vec<hecs::Entity>,
+        }
+        let rows: Vec<Row> = {
+            let mut q = w.query::<(
+                &StringId,
+                &SettlementLandId,
+                &SettlementInventories,
+                &SettlementPopulations,
+                &SettlementWorkplaces,
+            )>();
+            q.iter()
+                .map(|(sid, land_id, inv_ents, pop_ents, work_ents)| Row {
+                    id: sid.0.clone(),
+                    land_id: land_id.0.clone(),
+                    inventories: inv_ents.0.clone(),
+                    populations: pop_ents.0.clone(),
+                    workplaces: work_ents.0.clone(),
+                })
+                .collect()
+        };
+
+        for row in &rows {
+            let mut inventories = Vec::new();
+            for &e in &row.inventories {
+                let inv_id = w.get::<&StringId>(e).unwrap().0.clone();
+                let res_id = w.get::<&InventoryResourceId>(e).unwrap().0.clone();
+                let qty = w.get::<&InventoryQuantity>(e).unwrap().0;
+                inventories.push(json!({
+                    "id": inv_id,
+                    "resource_id": res_id,
+                    "quantity": qty,
+                }));
+            }
+
+            let mut populations = Vec::new();
+            for &e in &row.populations {
+                let pop_id = w.get::<&StringId>(e).unwrap().0.clone();
+                let prof_id = w.get::<&PopulationProfessionId>(e).unwrap().0.clone();
+                populations.push(json!({
+                    "id": pop_id,
+                    "profession_id": prof_id,
+                }));
+            }
+
+            let mut workplaces = Vec::new();
+            for &e in &row.workplaces {
+                let work_id = w.get::<&StringId>(e).unwrap().0.clone();
+                let prod_id = w.get::<&WorkplaceProductionId>(e).unwrap().0.clone();
+                let pop_id = w.get::<&WorkplacePopulationId>(e).unwrap().0.clone();
+                workplaces.push(json!({
+                    "id": work_id,
+                    "production_id": prod_id,
+                    "population_id": pop_id,
+                }));
+            }
+
             settlements.push(json!({
-                "id": id.0,
-                "land_id": land_id.0,
-                "population": population.0,
+                "id": row.id,
+                "land_id": row.land_id,
+                "inventories": inventories,
+                "populations": populations,
+                "workplaces": workplaces,
             }));
         }
         settlements
