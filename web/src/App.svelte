@@ -2,6 +2,7 @@
   import { Router, Route } from "svelte-routing";
   import MapView from "./lib/MapView.svelte";
   import LandDetail from "./lib/LandDetail.svelte";
+  import DateBanner from "./lib/DateBanner.svelte";
   import { selectedLandId } from "./lib/store";
   import { onMount } from "svelte";
 
@@ -28,6 +29,7 @@
     <header class="banner">
       <h1>The Realm</h1>
       <span class="subtitle">A chronicle of these lands</span>
+      <DateBanner />
     </header>
 
     <div class="stage">
@@ -68,6 +70,7 @@
     color: var(--ink-soft);
     letter-spacing: 0.08em;
     font-size: 0.9rem;
+    margin-right: auto;
   }
   .stage {
     position: relative;

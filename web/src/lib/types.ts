@@ -1,4 +1,4 @@
-/** Mirrors the JSON shape from Rust /api/v1/home. Keep in sync with src/http.rs. */
+/** Mirrors the JSON shape from Rust /api/v1/*. Keep in sync with src/http/endpoints/. */
 
 export type Terrain = "plains" | "wetlands" | "forest";
 
@@ -35,4 +35,16 @@ export interface HomeResponse {
     roads: Road[];
     settlements: Settlement[];
   };
+}
+
+/** In-game calendar date. `month` and `day` are 1-indexed. */
+export interface GameDate {
+  year: number;
+  month: number;
+  day: number;
+}
+
+export interface DateResponse {
+  /** Null until the world has a Date entity. */
+  data: GameDate | null;
 }

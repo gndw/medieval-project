@@ -4,6 +4,7 @@ use axum::{routing::get, Router};
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::app::SharedWorld;
+use crate::http::endpoints::date::date;
 use crate::http::endpoints::home::home;
 
 /// Build the full router: `/api/v1/*` → axum routes; everything else →
@@ -11,6 +12,7 @@ use crate::http::endpoints::home::home;
 pub fn router(world: SharedWorld, static_dir: &'static str) -> Router {
     let api = Router::new()
         .route("/api/v1/home", get(home))
+        .route("/api/v1/date", get(date))
         .with_state(world);
 
     let index = format!("{static_dir}/index.html");

@@ -1,5 +1,8 @@
 import { writable } from "svelte/store";
-import type { Land, Road, Settlement } from "./types";
+import type { GameDate, Land, Road, Settlement } from "./types";
+
+/** Current in-game date, or null before the first successful fetch. */
+export const date = writable<GameDate | null>(null);
 
 /** All lands currently loaded from the backend. */
 export const lands = writable<Land[]>([]);

@@ -38,6 +38,36 @@ try {
   await page.screenshot({ path: "web/e2e/01-map.png", fullPage: true });
   log("screenshot saved: web/e2e/01-map.png");
 
+  // ---- Verify the banner shows the in-game date and that it advances ----
+  await page.waitForSelector(".game-date:not(.pending)", { timeout: 5000 });
+  const dateText = (await page.locator(".game-date").textContent())?.trim();
+  log("date text:", dateText);
+  const parse = (t) => {
+    const m = t?.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+    return m ? { year: +m[1], month: +m[2], day: +m[3] } : null;
+  };
+  const first = parse(dateText);
+  if (!first) fail(`date banner did not match 'YYYY/MM/DD', got '${dateText}'`);
+  if (first.year === 0 || first.month < 1 || first.day < 1) {
+    fail(`date banner has uninitialised values: ${JSON.stringify(first)}`);
+  }
+
+  // Backend ticks once per second, so the day must change within ~4s.
+  const changed = await page
+    .waitForFunction(
+      (before) => document.querySelector(".game-date")?.textContent?.trim() !== before,
+      dateText,
+      { timeout: 4000 },
+    )
+    .then(() => true)
+    .catch(() => false);
+  if (!changed) fail(`date did not advance within 4s (stuck at '${dateText}')`);
+  const after = parse((await page.locator(".game-date").textContent())?.trim());
+  log("date advanced:", JSON.stringify(first), "->", JSON.stringify(after));
+
+  await page.screenshot({ path: "web/e2e/04-date.png", fullPage: true });
+  log("screenshot saved: web/e2e/04-date.png");
+
   // ---- Click Goldharbour (has a settlement, pop 100) ----
   log("clicking Goldharbour");
   await page.getByRole("button", { name: "Goldharbour" }).click();
@@ -74,7 +104,7 @@ try {
     return h && h.textContent?.trim() === "Hawkrest";
   }, { timeout: 3000 });
 
-  const muted = await page.locator(".muted").textContent();
+  const muted = await page.locator("aside.panel .muted").textContent();
   log("no-settlement text:", muted);
   if (!muted?.toLowerCase().includes("no settlement")) {
     fail(`expected 'No settlement' message for Hawkrest, got '${muted}'`);
