@@ -27,8 +27,13 @@
 <Router>
   <main class="layout">
     <header class="banner">
-      <h1>The Realm</h1>
-      <span class="subtitle">A chronicle of these lands</span>
+      <div class="brand">
+        <span class="brand-mark">▣</span>
+        <div class="brand-text">
+          <h1>The Realm</h1>
+          <span class="subtitle">real-time overview of the realm</span>
+        </div>
+      </div>
       <DateBanner />
     </header>
 
@@ -52,25 +57,43 @@
   }
   .banner {
     display: flex;
-    align-items: baseline;
-    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
     padding: 0.9rem 1.25rem;
-    background: linear-gradient(180deg, var(--paper-bg-deep), var(--paper-bg));
-    border-bottom: 2px solid var(--ink);
-    box-shadow: 0 4px 10px rgba(61, 40, 23, 0.15);
+    background: var(--surface);
+    border-bottom: 1px solid var(--ink-faint);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .brand-mark {
+    font-family: var(--font-body);
+    color: var(--accent);
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
   }
   .banner h1 {
     margin: 0;
     font-family: var(--font-display);
-    font-size: 2rem;
-    letter-spacing: 0.04em;
+    font-size: 1.15rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--ink);
   }
   .subtitle {
-    font-family: var(--font-smallcaps);
-    color: var(--ink-soft);
-    letter-spacing: 0.08em;
-    font-size: 0.9rem;
-    margin-right: auto;
+    font-family: var(--font-body);
+    color: var(--ink-mid);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
   .stage {
     position: relative;

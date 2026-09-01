@@ -175,35 +175,16 @@
     aria-label="Map of lands and roads. Use arrow keys to pan, plus and minus to zoom, Escape to deselect."
   >
     <defs>
-      <!-- Hand-drawn wobble filter applied to all strokes. -->
-      <filter id="wobble" x="-5%" y="-5%" width="110%" height="110%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="3" />
-        <feDisplacementMap in="SourceGraphic" scale="3" />
-      </filter>
-
-      <!-- Settlement icon: castle silhouette drawn so y=0 is the ground line,
-           used at each land's holding point via <use>. -->
-      <symbol id="settlement" viewBox="-12 -14 24 14" overflow="visible">
-        <g fill="var(--ink)" stroke="var(--ink)" stroke-linejoin="miter">
-          <!-- left flanking tower -->
-          <rect x="-12" y="-9" width="6" height="9" fill="none" stroke-width="1" />
-          <rect x="-12" y="-11" width="1.6" height="2" />
-          <rect x="-8.4" y="-11" width="1.6" height="2" />
-          <!-- right flanking tower -->
-          <rect x="6" y="-9" width="6" height="9" fill="none" stroke-width="1" />
-          <rect x="6" y="-11" width="1.6" height="2" />
-          <rect x="9.6" y="-11" width="1.6" height="2" />
-          <!-- central keep -->
-          <rect x="-5" y="-13" width="10" height="13" fill="none" stroke-width="1" />
-          <rect x="-5" y="-15" width="1.6" height="2" />
-          <rect x="-2.2" y="-15" width="1.6" height="2" />
-          <rect x="0.6" y="-15" width="1.6" height="2" />
-          <rect x="3.4" y="-15" width="1.6" height="2" />
-          <!-- arched gate -->
-          <path d="M -2 0 L -2 -3.5 Q 0 -5.5 2 -3.5 L 2 0 Z" />
-          <!-- pennant -->
-          <line x1="0" y1="-15" x2="0" y2="-19" stroke-width="1" />
-          <path d="M 0 -19 L 4 -17.5 L 0 -16 Z" />
+      <!-- Settlement mark: clean monoline castle silhouette.
+           Origin (0,0) sits at the ground line beneath the building. -->
+      <symbol id="settlement" viewBox="-8 -16 16 16" overflow="visible">
+        <g fill="none" stroke="var(--ink)" stroke-width="0.9" stroke-linejoin="miter">
+          <rect x="-7" y="-9" width="14" height="9" />
+          <rect x="-7" y="-11" width="2" height="2" />
+          <rect x="-1" y="-13" width="2" height="4" />
+          <rect x="5" y="-11" width="2" height="2" />
+          <line x1="0" y1="-13" x2="0" y2="-15" />
+          <path d="M 0 -15 L 3.5 -14 L 0 -13 Z" fill="var(--ink)" />
         </g>
       </symbol>
     </defs>
@@ -216,11 +197,10 @@
             <polygon
               points={pointsAttr(land.borders)}
               fill={fillFor(land.terrain)}
-              fill-opacity="0.78"
+              fill-opacity="0.85"
               stroke="var(--ink)"
-              stroke-width="1.5"
-              stroke-linejoin="round"
-              filter="url(#wobble)"
+              stroke-width="1.4"
+              stroke-linejoin="miter"
               onclick={(ev) => selectLand(land, ev)}
               onkeydown={(ev) => { if (ev.key === "Enter") selectLand(land, ev as unknown as MouseEvent); }}
               tabindex="0"
@@ -239,11 +219,10 @@
             points={pointsAttr(road.points)}
             fill="none"
             stroke="var(--road)"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-dasharray="8 5"
-            filter="url(#wobble)"
+            stroke-width="1.2"
+            stroke-linecap="butt"
+            stroke-linejoin="miter"
+            stroke-dasharray="4 3"
             pointer-events="none"
           >
             <title>{road.id} ({road.distance_days} days)</title>
@@ -256,21 +235,19 @@
         {#each $lands as land (land.id)}
           <use
             href="#settlement"
-            x={land.holding[0] - 20}
-            y={land.holding[1] - 23}
-            width="40"
-            height="23"
+            x={land.holding[0] - 8}
+            y={land.holding[1] - 16}
+            width="16"
+            height="16"
             class="settlement"
-            filter="url(#wobble)"
             pointer-events="none"
           />
           <text
             x={land.holding[0]}
-            y={land.holding[1] + 18}
+            y={land.holding[1] - 19}
             text-anchor="middle"
             dominant-baseline="middle"
             class="land-label"
-            filter="url(#wobble)"
           >
             {land.name}
           </text>
@@ -286,7 +263,7 @@
     width: 100%;
     height: 100%;
     cursor: grab;
-    background: var(--paper-bg);
+    background: var(--sea);
   }
   .map:active { cursor: grabbing; }
 
@@ -294,29 +271,31 @@
     transition: fill-opacity 120ms ease, stroke-width 120ms ease;
   }
   .land:hover polygon {
-    fill-opacity: 0.95;
-    stroke-width: 2;
+    fill-opacity: 1;
   }
   .land.selected polygon {
     fill-opacity: 1;
-    stroke: var(--ink);
-    stroke-width: 3;
+    stroke: var(--accent);
+    stroke-width: 2.4;
+  }
+  .land polygon:focus-visible {
+    outline: none;
+    stroke: var(--accent);
+    stroke-width: 2.4;
   }
 
   .road {
-    /* slightly more saturated than ink so roads stand out from borders */
     stroke: var(--road);
   }
 
   .land-label {
-    font-family: var(--font-smallcaps);
-    font-size: 18px;
+    font-family: var(--font-body);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
     fill: var(--ink);
     pointer-events: none;
-    paint-order: stroke;
-    stroke: var(--paper-bg);
-    stroke-width: 3;
-    stroke-linejoin: round;
   }
 
   .status {
@@ -324,8 +303,9 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    font-size: 1.4rem;
-    color: var(--ink-soft);
+    font-size: 0.9rem;
+    color: var(--ink-mid);
+    letter-spacing: 0.04em;
   }
   .status.error { color: var(--accent); }
 </style>

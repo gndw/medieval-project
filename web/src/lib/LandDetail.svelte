@@ -20,29 +20,32 @@
 {#if land}
   <aside class="panel">
     <header>
-      <h2>{land.name}</h2>
+      <div class="header-text">
+        <span class="eyebrow">land</span>
+        <h2>{land.name}</h2>
+      </div>
       <button class="close" onclick={close} aria-label="Close details">×</button>
     </header>
 
-    <dl>
-      <dt>ID</dt>
+    <dl class="kv">
+      <dt>id</dt>
       <dd><code>{land.id}</code></dd>
 
-      <dt>Terrain</dt>
-      <dd class="terrain terrain-{land.terrain}">{land.terrain}</dd>
+      <dt>terrain</dt>
+      <dd><span class="terrain terrain-{land.terrain}">{land.terrain}</span></dd>
 
-      <dt>Holding</dt>
+      <dt>holding</dt>
       <dd>({fmtCoord(land.holding)})</dd>
 
-      <dt>Border vertices</dt>
+      <dt>border vertices</dt>
       <dd>{land.borders.length}</dd>
     </dl>
 
     <section class="settlement">
       <h3>Settlement</h3>
       {#if settlement}
-        <dl>
-          <dt>ID</dt>
+        <dl class="kv">
+          <dt>id</dt>
           <dd><code>{settlement.id}</code></dd>
         </dl>
 
@@ -107,7 +110,7 @@
       <h3>Borders</h3>
       <ol>
         {#each land.borders as [x, y], i}
-          <li>{i + 1}. ({x.toFixed(2)}, {y.toFixed(2)})</li>
+          <li>{String(i + 1).padStart(2, "0")} ({x.toFixed(2)}, {y.toFixed(2)})</li>
         {/each}
       </ol>
     </section>
@@ -121,109 +124,151 @@
     right: 0;
     bottom: 0;
     width: min(360px, 38vw);
-    padding: 1.5rem 1.25rem 1.25rem;
-    background:
-      linear-gradient(180deg, var(--paper-bg), var(--paper-bg-deep));
+    padding: 1.25rem 1.25rem 1.25rem;
+    background: var(--surface);
     color: var(--ink);
-    border-left: 2px solid var(--ink);
-    box-shadow: -6px 0 14px rgba(61, 40, 23, 0.18);
+    border-left: 1px solid var(--ink-faint);
     overflow-y: auto;
     font-family: var(--font-body);
   }
 
   header {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     justify-content: space-between;
-    border-bottom: 1px solid var(--ink-soft);
-    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 0.6rem;
     margin-bottom: 1rem;
+  }
+  .header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .eyebrow {
+    font-family: var(--font-body);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
   }
   h2 {
     margin: 0;
     font-family: var(--font-display);
-    font-size: 1.8rem;
+    font-size: 1.5rem;
+    font-weight: 400;
     letter-spacing: 0.02em;
+    line-height: 1.1;
+    color: var(--ink);
   }
   .close {
-    background: none;
-    border: none;
+    background: transparent;
+    border: 1px solid var(--ink-faint);
+    border-radius: 2px;
     color: var(--ink);
-    font-size: 1.8rem;
+    font-family: var(--font-body);
+    font-size: 1rem;
     line-height: 1;
     cursor: pointer;
-    padding: 0 0.25rem;
+    padding: 0.2rem 0.45rem;
+    transition: border-color 120ms ease, color 120ms ease;
   }
-  .close:hover { color: var(--accent); }
+  .close:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
 
-  dl {
+  .kv {
     display: grid;
     grid-template-columns: max-content 1fr;
-    column-gap: 0.75rem;
-    row-gap: 0.4rem;
+    column-gap: 0.85rem;
+    row-gap: 0.45rem;
     margin: 0 0 1.25rem;
   }
-  dt {
-    font-family: var(--font-smallcaps);
-    color: var(--ink-soft);
-    letter-spacing: 0.04em;
+  .kv dt {
+    font-family: var(--font-body);
+    color: var(--ink-mid);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    align-self: center;
   }
-  dd {
+  .kv dd {
     margin: 0;
     font-family: var(--font-body);
+    font-size: 0.85rem;
   }
   code {
-    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-    font-size: 0.9em;
-    background: rgba(61, 40, 23, 0.08);
-    padding: 0.05em 0.35em;
-    border-radius: 3px;
+    font-family: var(--font-body);
+    font-size: 0.82em;
+    background: var(--surface-deep);
+    padding: 0.05em 0.4em;
+    border: 1px solid var(--ink-faint);
+    border-radius: 2px;
   }
 
   .terrain {
-    font-family: var(--font-smallcaps);
-    letter-spacing: 0.05em;
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
   .terrain-plains  { color: #4a5a25; }
-  .terrain-wetlands { color: #2f4a5a; }
+  .terrain-wetlands { color: #2f5a52; }
   .terrain-forest  { color: #2f3d1c; }
 
   section h3 {
-    font-family: var(--font-display);
-    font-size: 1.1rem;
-    margin: 1rem 0 0.5rem;
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    margin: 1.25rem 0 0.5rem;
+    padding-bottom: 0.3rem;
     border-bottom: 1px solid var(--ink-faint);
-    padding-bottom: 0.25rem;
   }
   .borders ol {
     margin: 0;
-    padding-left: 1.25rem;
-    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-    font-size: 0.85rem;
-    line-height: 1.45;
-    color: var(--ink-soft);
+    padding-left: 0;
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    color: var(--ink-mid);
+    list-style: none;
+    columns: 2;
+    column-gap: 1rem;
+  }
+  .borders li {
+    break-inside: avoid;
   }
   .muted {
-    color: var(--ink-soft);
-    font-style: italic;
+    color: var(--ink-mid);
     margin: 0;
+    font-style: italic;
   }
 
   .children-title {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    margin: 0.9rem 0 0.35rem;
-    padding-bottom: 0.2rem;
+    margin: 1rem 0 0.4rem;
+    padding-bottom: 0.25rem;
     border-bottom: 1px dashed var(--ink-faint);
-    font-family: var(--font-smallcaps);
-    font-size: 0.95rem;
-    letter-spacing: 0.06em;
-    color: var(--ink-soft);
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
   }
   .count {
     font-family: var(--font-body);
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     color: var(--ink-faint);
   }
 
@@ -231,20 +276,22 @@
     width: 100%;
     border-collapse: collapse;
     margin: 0 0 0.5rem;
-    font-size: 0.9rem;
+    font-size: 0.82rem;
   }
   table.children th,
   table.children td {
     text-align: left;
-    padding: 0.2rem 0.3rem;
-    border-bottom: 1px solid rgba(61, 40, 23, 0.12);
+    padding: 0.25rem 0.35rem;
+    border-bottom: 1px solid var(--ink-faint);
   }
   table.children th {
-    font-family: var(--font-smallcaps);
-    color: var(--ink-soft);
-    font-weight: normal;
-    letter-spacing: 0.04em;
-    border-bottom-color: var(--ink-soft);
+    font-family: var(--font-body);
+    color: var(--ink-mid);
+    font-weight: 500;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-bottom-color: var(--ink-mid);
   }
   table.children td.num,
   table.children th.num {
@@ -258,18 +305,18 @@
     padding: 0;
   }
   ul.children li {
-    padding: 0.25rem 0;
-    border-bottom: 1px solid rgba(61, 40, 23, 0.12);
-    font-size: 0.9rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--ink-faint);
+    font-size: 0.82rem;
   }
   ul.children li:last-child { border-bottom: none; }
   .muted-inline {
-    color: var(--ink-soft);
+    color: var(--ink-mid);
   }
   .refs {
     margin-top: 0.15rem;
-    color: var(--ink-soft);
-    font-size: 0.8rem;
+    color: var(--ink-mid);
+    font-size: 0.78rem;
     line-height: 1.4;
   }
 </style>
