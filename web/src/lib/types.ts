@@ -1,4 +1,4 @@
-/** Mirrors the JSON shape from Rust /api/v1/*. Keep in sync with src/http/endpoints/. */
+/** Mirrors the JSON shape from Rust Tauri commands. Keep in sync with src/commands.rs. */
 
 export type Terrain = "plains" | "wetlands" | "forest";
 
