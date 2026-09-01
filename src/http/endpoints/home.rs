@@ -10,7 +10,7 @@ use crate::components::road::{RoadBetween, RoadDistanceDays, RoadPoints};
 use crate::components::settlement::{
     SettlementInventories, SettlementLandId, SettlementPopulations, SettlementWorkplaces,
 };
-use crate::components::workplace::{WorkplacePopulationId, WorkplaceProductionId};
+use crate::components::workplace::{WorkplacePopulationId, WorkplaceProduceNextDate, WorkplaceProductionId};
 
 /// `GET /api/v1/home` — returns all lands, roads, and settlements in `data`.
 /// Re-reads the world on every request so mutations are immediately visible.
@@ -112,10 +112,14 @@ pub async fn home(State(world): State<SharedWorld>) -> Json<Value> {
                 let work_id = w.get::<&StringId>(e).unwrap().0.clone();
                 let prod_id = w.get::<&WorkplaceProductionId>(e).unwrap().0.clone();
                 let pop_id = w.get::<&WorkplacePopulationId>(e).unwrap().0.clone();
+                let next_date = w.get::<&WorkplaceProduceNextDate>(e).unwrap().0;
                 workplaces.push(json!({
                     "id": work_id,
                     "production_id": prod_id,
                     "population_id": pop_id,
+                    "produce_next_date": next_date.map(|d| json!({
+                        "year": d.year, "month": d.month, "day": d.day,
+                    })),
                 }));
             }
 

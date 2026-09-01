@@ -20,7 +20,7 @@ use crate::components::settlement::{
     SettlementInventories, SettlementLandId, SettlementPopulations, SettlementWorkplaces,
 };
 use crate::components::workplace::{
-    WorkplacePopulationId, WorkplaceProductionId, WorkplaceSettlement,
+    WorkplacePopulationId, WorkplaceProduceNextDate, WorkplaceProductionId, WorkplaceSettlement,
 };
 
 const CONTENT_DIR: &str = "contents/base";
@@ -84,10 +84,23 @@ pub struct Population {
 
 /// One production site in a settlement's workplaces list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Workplace {
     pub id: String,
     pub production_id: String,
     pub population_id: String,
+    pub produce_next_date: Option<Date>,
+}
+
+impl Default for Workplace {
+    fn default() -> Self {
+        Workplace {
+            id: String::new(),
+            production_id: String::new(),
+            population_id: String::new(),
+            produce_next_date: None,
+        }
+    }
 }
 
 /// A single resource as defined in `resources.ron`.
@@ -260,6 +273,7 @@ pub fn startup(_app: SharedApp, world: SharedWorld) {
                 WorkplaceSettlement(settlement),
                 WorkplaceProductionId(work.production_id),
                 WorkplacePopulationId(work.population_id),
+                WorkplaceProduceNextDate(work.produce_next_date),
             ));
             workplace_entities.push(e);
         }
