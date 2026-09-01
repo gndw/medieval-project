@@ -11,10 +11,7 @@ use app::App;
 use tauri::Manager;
 
 fn main() {
-    let mut app = App::new();
-    app.register_startup(content::startup);
-    app.register_schedule("on_tick", game::date_advancing::tick);
-    app.register_schedule("on_day", game::workplace_producing::on_day);
+    let app = App::new();
 
     // Shared stop flag for the tick loop; flipped when the window closes.
     let tick_stop = Arc::new(AtomicBool::new(true));
@@ -29,20 +26,15 @@ fn main() {
             tauri_app.manage(app.state.clone());
             tauri_app.manage(app.world.clone());
 
-            // Drain startups (loads content into the world).
-            app.run_startups();
+            // Load content into the world.
+            content::startup(app.state.clone(), app.world.clone());
 
             // Spawn the tick loop on its own OS thread.
             let stop = Arc::clone(&tick_stop);
             std::thread::Builder::new()
                 .name("medieval-tick".into())
                 .spawn(move || {
-                    App::run_tick_loop(
-                        app.state.clone(),
-                        app.world.clone(),
-                        app.schedules.clone(),
-                        stop,
-                    );
+                    App::run_tick_loop(app.state.clone(), app.world.clone(), stop);
                 })
                 .expect("failed to spawn tick thread");
             Ok(())

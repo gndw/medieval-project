@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::app::{SharedApp, SharedSchedules, SharedWorld};
+use crate::app::{SharedApp, SharedWorld};
 use crate::components::calendar::Calendar;
 use crate::components::core::StringId;
 use crate::components::date::Date;
@@ -17,7 +17,7 @@ use crate::components::workplace::{
 ///   1. Has a next-date and it has arrived → harvest `produces`, reschedule.
 ///   2. Has no next-date and the assigned population's profession matches the
 ///      production's required profession → consume `consumes`, schedule harvest.
-pub fn on_day(_app: SharedApp, world: SharedWorld, _schedules: SharedSchedules) {
+pub fn on_day(_app: SharedApp, world: SharedWorld) {
     let mut world = world.lock().expect("world mutex poisoned");
 
     let today = match world.query::<&Date>().iter().next().copied() {
