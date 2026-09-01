@@ -1,0 +1,26 @@
+{
+  "productName": "Medieval Project",
+  "version": "0.1.0",
+  "identifier": "dev.medieval.project",
+  "build": {
+    "frontendDist": "web/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "The Realm",
+        "width": 1280,
+        "height": 800
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

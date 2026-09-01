@@ -2,13 +2,13 @@ use hecs::World;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// Real-world seconds between auto-firings of the `on_tick` schedule.
 pub const TICK_PER_SECONDS: u64 = 1;
 
-/// Shared handle to the ECS world. Used by the main loop, HTTP handlers,
+/// Shared handle to the ECS world. Used by the main loop, Tauri commands,
 /// and any thread that needs to read or mutate entities.
 pub type SharedWorld = Arc<Mutex<World>>;
 
@@ -84,11 +84,17 @@ impl SharedSchedules {
 /// holder can read and write through an `&self`.
 pub struct AppState {
     is_tick_paused: AtomicBool,
+    /// Optional Tauri handle so game handlers can emit events to the webview.
+    /// `None` when running headless without a Tauri window.
+    tauri: Mutex<Option<tauri::AppHandle>>,
 }
 
 impl AppState {
     fn new() -> Self {
-        AppState { is_tick_paused: AtomicBool::new(false) }
+        AppState {
+            is_tick_paused: AtomicBool::new(false),
+            tauri: Mutex::new(None),
+        }
     }
 
     /// Pause or resume the tick loop. Callable from any thread.
@@ -100,6 +106,16 @@ impl AppState {
     pub fn is_paused(&self) -> bool {
         self.is_tick_paused.load(Ordering::Relaxed)
     }
+
+    /// Attach the Tauri handle so handlers can `emit` events.
+    pub fn set_tauri(&self, handle: tauri::AppHandle) {
+        *self.tauri.lock().expect("tauri mutex poisoned") = Some(handle);
+    }
+
+    /// Borrow the Tauri handle, if attached. Returns `None` in headless mode.
+    pub fn tauri(&self) -> Option<tauri::AppHandle> {
+        self.tauri.lock().expect("tauri mutex poisoned").clone()
+    }
 }
 
 /// Top-level application state.
@@ -107,7 +123,7 @@ pub struct App {
     pub state: SharedApp,
     pub world: SharedWorld,
     pub schedules: SharedSchedules,
-    pub startups: Vec<Box<dyn FnMut(SharedApp, SharedWorld)>>,
+    pub startups: Vec<Box<dyn FnMut(SharedApp, SharedWorld) + Send>>,
 }
 
 impl App {
@@ -121,14 +137,8 @@ impl App {
         }
     }
 
-    /// Pause or resume the tick loop from the owning thread.
-    #[allow(dead_code)]
-    pub fn set_pause(&self, is_paused: bool) {
-        self.state.set_pause(is_paused);
-    }
-
     /// Register a startup function invoked once before the main loop.
-    pub fn register_startup(&mut self, f: impl FnMut(SharedApp, SharedWorld) + 'static) {
+    pub fn register_startup(&mut self, f: impl FnMut(SharedApp, SharedWorld) + Send + 'static) {
         self.startups.push(Box::new(f));
     }
 
@@ -142,75 +152,37 @@ impl App {
         self.schedules.register(name, f);
     }
 
-    /// Fire all handlers registered under `name` on the calling thread.
-    #[allow(dead_code)]
-    pub fn fire(&self, name: &str) {
-        self.schedules
-            .fire(name, Arc::clone(&self.state), Arc::clone(&self.world));
-    }
-
-    /// Clone the shared world handle for subsystems that need it from
-    /// another thread.
-    #[allow(dead_code)]
-    pub fn world_handle(&self) -> SharedWorld {
-        Arc::clone(&self.world)
-    }
-
-    /// Clone the shared app-state handle for subsystems that need it.
-    #[allow(dead_code)]
-    pub fn app_handle(&self) -> SharedApp {
-        Arc::clone(&self.state)
-    }
-
-    /// Run the main loop until SIGINT/SIGTERM, auto-firing the `on_tick`
-    /// schedule every `TICK_PER_SECONDS`.
-    pub fn run(&mut self) {
-        // Run all startup functions before entering the loop, cloning the
-        // handles per call so each can move the Arcs into a thread.
+    /// Drain and run every registered startup, cloning shared handles per call.
+    pub fn run_startups(&mut self) {
         for mut startup in self.startups.drain(..) {
             startup(Arc::clone(&self.state), Arc::clone(&self.world));
         }
+    }
 
-        // Condvar so the main thread wakes immediately on Ctrl+C instead
-        // of waiting out the rest of a tick.
-        let pair = Arc::new((Mutex::new(true), Condvar::new()));
-        {
-            let pair = Arc::clone(&pair);
-            ctrlc::set_handler(move || {
-                let (lock, cvar) = &*pair;
-                let mut running = lock.lock().unwrap();
-                *running = false;
-                cvar.notify_all();
-            })
-            .expect("failed to set Ctrl+C handler");
-        }
-
-        println!("\nRunning. Press Ctrl+C to stop.");
+    /// Run the tick loop on the calling thread until `stop` is cleared.
+    /// Honours `AppState::is_paused` by skipping the schedule while paused.
+    /// Shutdown is bounded by `TICK_PER_SECONDS` since `park_timeout` returns
+    /// at the next tick and re-checks the flag.
+    pub fn run_tick_loop(
+        app: SharedApp,
+        world: SharedWorld,
+        schedules: SharedSchedules,
+        stop: Arc<AtomicBool>,
+    ) {
+        println!("\nRunning. Close the window to stop.");
         std::io::stdout().flush().unwrap();
 
         let tick_duration = Duration::from_secs(TICK_PER_SECONDS);
-        let (lock, cvar) = &*pair;
-        let mut running = lock.lock().unwrap();
-        while *running {
-            // Sleep until Ctrl+C (notify_all) or the tick elapses.
-            let (guard, _) = cvar.wait_timeout(running, tick_duration).unwrap();
-            running = guard;
-
-            if !*running {
+        while stop.load(Ordering::Relaxed) {
+            std::thread::park_timeout(tick_duration);
+            if !stop.load(Ordering::Relaxed) {
                 break;
             }
-
-            // Skip the schedule while paused. The condvar still wakes us
-            // immediately on Ctrl+C.
-            if self.state.is_paused() {
+            if app.is_paused() {
                 continue;
             }
-
-            // Auto-fire the on_tick schedule every TICK_PER_SECONDS.
-            self.schedules
-                .fire("on_tick", Arc::clone(&self.state), Arc::clone(&self.world));
+            schedules.fire("on_tick", app.clone(), world.clone());
         }
-
         println!("Shutting down gracefully.");
         std::io::stdout().flush().unwrap();
     }

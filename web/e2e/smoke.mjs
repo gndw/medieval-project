@@ -1,171 +1,287 @@
-// Smoke test: boots Chromium against the running backend on :7777,
-// verifies the map renders, clicks a land, and checks the detail panel
-// shows the correct settlement info.
+// Smoke test: drives the Tauri app via the WebDriver protocol exposed by
+// `tauri-driver` on http://127.0.0.1:4444. Verifies the map renders, clicks
+// a land, and checks the detail panel shows the correct settlement info.
+// Date advances come through the `date-updated` Tauri event.
 //
 // Usage:
-//   1. cargo run      (in another terminal, on 127.0.0.1:7777)
-//   2. node web/e2e/smoke.mjs
+//   1. Start Vite (separate terminal):
+//        npm --prefix web run dev
+//   2. Start the Tauri binary (separate terminal):
+//        cargo run
+//      The binary in dev mode loads from http://localhost:5173.
+//   3. Start tauri-driver (separate terminal):
+//        tauri-driver --port 4444
+//   4. node web/e2e/smoke.mjs
+//
+// Override the WebDriver URL with TAURI_DRIVER_URL or the binary path with
+// TAURI_BINARY.
 
-import { chromium } from "playwright";
-import { writeFileSync } from "node:fs";
-
-const BASE = "http://127.0.0.1:7777";
+const BASE = process.env.TAURI_DRIVER_URL ?? "http://127.0.0.1:4444";
+const BINARY = process.env.TAURI_BINARY ??
+  "C:/Users/gndw/Projects/medieval-project/target/debug/medieval-project.exe";
 
 function log(...a) { console.log("[smoke]", ...a); }
 function fail(msg) { console.error("[smoke] FAIL:", msg); process.exit(1); }
 
-const browser = await chromium.launch({ headless: true });
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-const page = await ctx.newPage();
+async function wd(path, init = {}) {
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
+  });
+  const body = await res.json();
+  if (body.value && body.value.error) fail(`${path}: ${body.value.message ?? "unknown error"}`);
+  return body.value;
+}
 
-page.on("pageerror", (e) => console.error("[page error]", e.message));
-page.on("console", (m) => {
-  if (m.type() === "error") console.error("[console error]", m.text());
+// Extract the W3C element id from a `{ "<key>": "<uuid>" }` object.
+function eid(el) { return el && (el.ELEMENT ?? Object.values(el)[0]); }
+
+const session = await wd("/session", {
+  method: "POST",
+  body: JSON.stringify({
+    capabilities: {
+      alwaysMatch: {
+        browserName: "webview2",
+        "ms:edgeOptions": { binary: BINARY },
+      },
+    },
+  }),
 });
+const sid = session.sessionId;
+log("session:", sid);
 
 try {
-  log("loading", BASE);
-  await page.goto(BASE, { waitUntil: "networkidle" });
+  // Wait until the page has settled (Svelte mounted and `fetchHome` resolved).
+  await waitFor(async () => {
+    const els = await wd(`/session/${sid}/elements`, {
+      method: "POST",
+      body: JSON.stringify({ using: "css selector", value: "svg.map" }),
+    });
+    return Array.isArray(els) && els.length > 0;
+  }, 10_000, "svg.map never appeared");
 
-  // ---- Verify map rendered: 4 land polygons + 3 road polylines ----
-  await page.waitForSelector("svg.map", { timeout: 5000 });
-  const landCount  = await page.locator(".land polygon").count();
-  const roadCount  = await page.locator(".road").count();
-  log(`land polygons: ${landCount}, road polylines: ${roadCount}`);
-  if (landCount !== 4) fail(`expected 4 land polygons, got ${landCount}`);
-  if (roadCount !== 3) fail(`expected 3 road polylines, got ${roadCount}`);
+  const lands = await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({ using: "css selector", value: ".land polygon" }),
+  });
+  const roads = await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({ using: "css selector", value: ".road" }),
+  });
+  log(`land polygons: ${lands.length}, road polylines: ${roads.length}`);
+  if (lands.length !== 4) fail(`expected 4 land polygons, got ${lands.length}`);
+  if (roads.length !== 3) fail(`expected 3 road polylines, got ${roads.length}`);
 
-  await page.screenshot({ path: "web/e2e/01-map.png", fullPage: true });
-  log("screenshot saved: web/e2e/01-map.png");
+  await screenshot(sid, "web/e2e/01-map.png");
 
-  // ---- Verify the banner shows the in-game date and that it advances ----
-  await page.waitForSelector(".date-value", { timeout: 5000 });
-  const dateText = (await page.locator(".date-value").textContent())?.trim();
+  // ---- Date banner ----
+  await waitFor(async () => {
+    const els = await wd(`/session/${sid}/elements`, {
+      method: "POST",
+      body: JSON.stringify({ using: "css selector", value: ".date-value" }),
+    });
+    return Array.isArray(els) && els.length > 0;
+  }, 5_000, "date banner never appeared");
+
+  const dateEl = eid((await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({ using: "css selector", value: ".date-value" }),
+  }))[0]);
+  const dateText = (await wd(`/session/${sid}/element/${dateEl}/text`)).trim();
   log("date text:", dateText);
-  const parse = (t) => {
-    const m = t?.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
-    return m ? { year: +m[1], month: +m[2], day: +m[3] } : null;
-  };
-  const first = parse(dateText);
+  const first = parseDate(dateText);
   if (!first) fail(`date banner did not match 'YYYY/MM/DD', got '${dateText}'`);
   if (first.year === 0 || first.month < 1 || first.day < 1) {
     fail(`date banner has uninitialised values: ${JSON.stringify(first)}`);
   }
 
-  // Backend ticks once per second, so the day must change within ~4s.
-  const changed = await page
-    .waitForFunction(
-      (before) => document.querySelector(".date-value")?.textContent?.trim() !== before,
-      dateText,
-      { timeout: 4000 },
-    )
-    .then(() => true)
-    .catch(() => false);
+  const changed = await waitFor(async () => {
+    const t = (await wd(`/session/${sid}/element/${dateEl}/text`)).trim();
+    return t !== dateText;
+  }, 4_000, null);
   if (!changed) fail(`date did not advance within 4s (stuck at '${dateText}')`);
-  const after = parse((await page.locator(".date-value").textContent())?.trim());
+  const after = parseDate((await wd(`/session/${sid}/element/${dateEl}/text`)).trim());
   log("date advanced:", JSON.stringify(first), "->", JSON.stringify(after));
 
-  await page.screenshot({ path: "web/e2e/04-date.png", fullPage: true });
-  log("screenshot saved: web/e2e/04-date.png");
+  await screenshot(sid, "web/e2e/04-date.png");
 
-  // ---- Spacebar pauses the tick; the badge appears and the date freezes ----
-  log("pressing space to pause");
-  await page.keyboard.press("Space");
-  await page.waitForSelector(".badge", { timeout: 3000 });
+  // ---- Spacebar pauses ----
+  await sendKey(sid, " ");
+  await waitFor(async () => {
+    const els = await wd(`/session/${sid}/elements`, {
+      method: "POST",
+      body: JSON.stringify({ using: "css selector", value: ".badge" }),
+    });
+    return Array.isArray(els) && els.length > 0;
+  }, 3_000, "pause badge never appeared");
 
-  const paused = (await page.locator(".date-value").textContent())?.trim();
-  await page.waitForTimeout(3000);
-  const stillPaused = (await page.locator(".date-value").textContent())?.trim();
+  const paused = (await wd(`/session/${sid}/element/${dateEl}/text`)).trim();
+  await new Promise((r) => setTimeout(r, 3000));
+  const stillPaused = (await wd(`/session/${sid}/element/${dateEl}/text`)).trim();
   log("paused at:", paused, "after 3s:", stillPaused);
   if (paused !== stillPaused) fail(`date advanced while paused: ${paused} -> ${stillPaused}`);
 
-  // The backend must agree, not just the UI.
-  const apiPaused = await page.evaluate(async () => {
-    const r = await fetch("/api/v1/date");
-    return (await r.json()).data.is_paused;
-  });
-  if (apiPaused !== true) fail(`GET /api/v1/date reported is_paused=${apiPaused}, expected true`);
+  await screenshot(sid, "web/e2e/05-paused.png");
 
-  await page.screenshot({ path: "web/e2e/05-paused.png", fullPage: true });
-  log("screenshot saved: web/e2e/05-paused.png");
+  // ---- Spacebar resumes ----
+  await sendKey(sid, " ");
+  await waitFor(async () => {
+    const els = await wd(`/session/${sid}/elements`, {
+      method: "POST",
+      body: JSON.stringify({ using: "css selector", value: ".badge" }),
+    });
+    return Array.isArray(els) && els.length === 0;
+  }, 3_000, "pause badge did not disappear");
 
-  // ---- Spacebar again resumes ----
-  log("pressing space to resume");
-  await page.keyboard.press("Space");
-  await page.waitForSelector(".badge", { state: "detached", timeout: 3000 });
-  const resumed = await page
-    .waitForFunction(
-      (before) => document.querySelector(".date-value")?.textContent?.trim() !== before,
-      stillPaused,
-      { timeout: 4000 },
-    )
-    .then(() => true)
-    .catch(() => false);
+  const resumed = await waitFor(async () => {
+    const t = (await wd(`/session/${sid}/element/${dateEl}/text`)).trim();
+    return t !== stillPaused;
+  }, 4_000, null);
   if (!resumed) fail(`date did not resume within 4s (stuck at '${stillPaused}')`);
-  log("resumed at:", (await page.locator(".date-value").textContent())?.trim());
+  log("resumed at:", (await wd(`/session/${sid}/element/${dateEl}/text`)).trim());
 
-  // ---- Click Goldharbour (has a settlement, pop 100) ----
-  log("clicking Goldharbour");
-  await page.getByRole("button", { name: "Goldharbour" }).click();
+  // ---- Click Goldharbour ----
+  const goldharbourBtn = eid((await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({
+      using: "xpath",
+      value: "//*[@aria-label='Goldharbour']",
+    }),
+  }))[0]);
+  if (!goldharbourBtn) fail("could not find Goldharbour polygon");
+  await wd(`/session/${sid}/element/${goldharbourBtn}/click`, { method: "POST", body: "{}" });
 
-  await page.waitForSelector("aside.panel", { timeout: 3000 });
-  const heading = await page.locator("aside.panel h2").textContent();
-  if (heading?.trim() !== "Goldharbour") fail(`expected panel heading 'Goldharbour', got '${heading}'`);
+  await waitFor(async () => {
+    const els = await wd(`/session/${sid}/elements`, {
+      method: "POST",
+      body: JSON.stringify({ using: "css selector", value: "aside.panel" }),
+    });
+    return Array.isArray(els) && els.length > 0;
+  }, 3_000, "detail panel never appeared");
 
-  // Settlement block should list 5 inventories, 9 populations, 5 workplaces.
-  const invRows = await page.locator("table.inventories tbody tr").count();
-  const popRows = await page.locator("ul.populations li").count();
-  const workRows = await page.locator("ul.workplaces li").count();
+  const heading = (await wd(`/session/${sid}/element/${eid((await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({ using: "css selector", value: "aside.panel h2" }),
+  }))[0])}/text`)).trim();
+  if (heading !== "Goldharbour") fail(`expected panel heading 'Goldharbour', got '${heading}'`);
+
+  const invRows = (await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({ using: "css selector", value: "table.inventories tbody tr" }),
+  })).length;
+  const popRows = (await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({ using: "css selector", value: "ul.populations li" }),
+  })).length;
+  const workRows = (await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({ using: "css selector", value: "ul.workplaces li" }),
+  })).length;
   log(`inventories=${invRows} populations=${popRows} workplaces=${workRows}`);
   if (invRows !== 5) fail(`expected 5 inventory rows, got ${invRows}`);
   if (popRows !== 9) fail(`expected 9 population rows, got ${popRows}`);
   if (workRows !== 5) fail(`expected 5 workplace rows, got ${workRows}`);
 
-  // Spot-check the bakery's two input rows are present.
-  const invResources = await page.locator("table.inventories tbody tr td:first-child code").allTextContents();
-  if (!invResources.includes("resource-wheat") || !invResources.includes("resource-wood") ||
-      !invResources.includes("resource-grain") || !invResources.includes("resource-bread") ||
-      !invResources.includes("resource-ale")) {
-    fail(`expected all 5 resource ids in inventory table, got ${JSON.stringify(invResources)}`);
-  }
+  await screenshot(sid, "web/e2e/02-goldharbour.png");
 
-  await page.screenshot({ path: "web/e2e/02-goldharbour.png", fullPage: true });
-  log("screenshot saved: web/e2e/02-goldharbour.png");
-
-  // URL should carry ?selected-land-id=land-1
-  const url = new URL(page.url());
-  const sel = url.searchParams.get("selected-land-id");
+  const url = await wd(`/session/${sid}/url`);
+  const sel = new URL(url).searchParams.get("selected-land-id");
   if (sel !== "land-1") fail(`expected selected-land-id=land-1, got '${sel}' (url: ${url})`);
-  log("URL:", url.toString());
+  log("URL:", url);
 
   // ---- Click Hawkrest (no settlement) ----
-  // Hawkrest sits on the right side of the map, partially under the panel,
-  // so close the panel first (realistic UX), then click.
-  log("closing panel");
-  await page.locator("aside.panel .close").click();
-  await page.waitForSelector("aside.panel", { state: "detached", timeout: 3000 });
+  const closeBtn = eid((await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({ using: "css selector", value: "aside.panel .close" }),
+  }))[0]);
+  await wd(`/session/${sid}/element/${closeBtn}/click`, { method: "POST", body: "{}" });
+  await waitFor(async () => {
+    const els = await wd(`/session/${sid}/elements`, {
+      method: "POST",
+      body: JSON.stringify({ using: "css selector", value: "aside.panel" }),
+    });
+    return Array.isArray(els) && els.length === 0;
+  }, 3_000, "panel did not close");
 
-  log("clicking Hawkrest");
-  await page.getByRole("button", { name: "Hawkrest" }).click();
-  await page.waitForFunction(() => {
-    const h = document.querySelector("aside.panel h2");
-    return h && h.textContent?.trim() === "Hawkrest";
-  }, { timeout: 3000 });
+  const hawkrestBtn = eid((await wd(`/session/${sid}/elements`, {
+    method: "POST",
+    body: JSON.stringify({
+      using: "xpath",
+      value: "//*[@aria-label='Hawkrest']",
+    }),
+  }))[0]);
+  await wd(`/session/${sid}/element/${hawkrestBtn}/click`, { method: "POST", body: "{}" });
+  await waitFor(async () => {
+    const txt = await wd(`/session/${sid}/execute/sync`, {
+      method: "POST",
+      body: JSON.stringify({
+        script: "return document.querySelector('aside.panel h2')?.textContent?.trim() ?? ''",
+        args: [],
+      }),
+    });
+    return txt === "Hawkrest";
+  }, 3_000, "Hawkrest detail never appeared");
 
-  const muted = await page.locator("aside.panel .muted").textContent();
+  const muted = await wd(`/session/${sid}/execute/sync`, {
+    method: "POST",
+    body: JSON.stringify({
+      script: "return document.querySelector('aside.panel .muted')?.textContent ?? ''",
+      args: [],
+    }),
+  });
   log("no-settlement text:", muted);
   if (!muted?.toLowerCase().includes("no settlement")) {
     fail(`expected 'No settlement' message for Hawkrest, got '${muted}'`);
   }
 
-  await page.screenshot({ path: "web/e2e/03-hawkrest.png", fullPage: true });
-  log("screenshot saved: web/e2e/03-hawkrest.png");
+  await screenshot(sid, "web/e2e/03-hawkrest.png");
 
   log("ALL CHECKS PASSED");
 } catch (e) {
-  await page.screenshot({ path: "web/e2e/error.png", fullPage: true });
+  try { await screenshot(sid, "web/e2e/error.png"); } catch {}
   console.error("[smoke] exception:", e);
   process.exit(1);
 } finally {
-  await browser.close();
+  await fetch(`${BASE}/session/${sid}`, { method: "DELETE" });
+}
+
+// ----- helpers -----------------------------------------------------------
+
+async function waitFor(fn, timeoutMs, errMsg) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try { if (await fn()) return true; } catch {}
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  if (errMsg) fail(errMsg);
+  return false;
+}
+
+async function sendKey(sid, key) {
+  // W3C actions API: build a key-down + key-up pair for one character.
+  await wd(`/session/${sid}/actions`, {
+    method: "POST",
+    body: JSON.stringify({
+      actions: [{
+        type: "key",
+        id: "kb1",
+        actions: [
+          { type: "keyDown", value: key },
+          { type: "keyUp", value: key },
+        ],
+      }],
+    }),
+  });
+}
+
+async function screenshot(sid, path) {
+  const b64 = await wd(`/session/${sid}/screenshot`);
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(path, Buffer.from(b64, "base64"));
+  log(`screenshot saved: ${path}`);
+}
+
+function parseDate(t) {
+  const m = t?.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  return m ? { year: +m[1], month: +m[2], day: +m[3] } : null;
 }

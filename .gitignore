@@ -3,3 +3,4 @@
 /web/dist/
 /web/.svelte-kit/
 /web/e2e/*.png
+/gen/schemas/

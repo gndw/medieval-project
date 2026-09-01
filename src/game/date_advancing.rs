@@ -1,10 +1,21 @@
+use serde::Serialize;
+use tauri::Emitter;
+
 use crate::app::{SharedApp, SharedSchedules, SharedWorld};
 use crate::components::calendar::Calendar;
 use crate::components::date::Date;
 
+/// Payload pushed to the webview every tick. Matches `DateResponse` in
+/// `web/src/lib/types.ts`.
+#[derive(Debug, Clone, Serialize)]
+pub struct DatePayload {
+    pub date: Option<Date>,
+    pub is_paused: bool,
+}
+
 /// `on_tick` handler: advance the singleton `Date` by one day, wrapping at
 /// month/year boundaries per the `Calendar`. Fires `on_day` when a day
-/// actually rolls over.
+/// actually rolls over, and pushes a `date-updated` event to the Tauri webview.
 pub fn tick(app: SharedApp, world: SharedWorld, schedules: SharedSchedules) {
     let advanced = {
         let world = world.lock().expect("world mutex poisoned");
@@ -34,6 +45,23 @@ pub fn tick(app: SharedApp, world: SharedWorld, schedules: SharedSchedules) {
     };
 
     if advanced {
-        schedules.fire("on_day", app, world);
+        schedules.fire("on_day", app.clone(), world.clone());
+    }
+
+    // Emit the post-tick date to the webview if Tauri is attached. Failures
+    // are swallowed: headless runs have no handle and the webview may have
+    // been closed mid-flight.
+    if let Some(handle) = app.tauri() {
+        let date = {
+            let w = world.lock().expect("world mutex poisoned");
+            w.query::<&Date>().iter().next().copied()
+        };
+        let _ = handle.emit(
+            "date-updated",
+            DatePayload {
+                date,
+                is_paused: app.is_paused(),
+            },
+        );
     }
 }

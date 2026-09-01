@@ -1,8 +1,10 @@
-use axum::{extract::State, Json};
+use serde::Deserialize;
 use serde_json::{json, Value};
+use tauri::State;
 
-use crate::app::SharedWorld;
+use crate::app::{SharedApp, SharedWorld};
 use crate::components::core::StringId;
+use crate::components::date::Date;
 use crate::components::inventory::{InventoryQuantity, InventoryResourceId};
 use crate::components::land::{LandBorders, LandHolding, LandName, LandTerrain};
 use crate::components::population::PopulationProfessionId;
@@ -10,11 +12,21 @@ use crate::components::road::{RoadBetween, RoadDistanceDays, RoadPoints};
 use crate::components::settlement::{
     SettlementInventories, SettlementLandId, SettlementPopulations, SettlementWorkplaces,
 };
-use crate::components::workplace::{WorkplacePopulationId, WorkplaceProduceNextDate, WorkplaceProductionId};
+use crate::components::workplace::{
+    WorkplacePopulationId, WorkplaceProduceNextDate, WorkplaceProductionId,
+};
 
-/// `GET /api/v1/home` — returns all lands, roads, and settlements in `data`.
-/// Re-reads the world on every request so mutations are immediately visible.
-pub async fn home(State(world): State<SharedWorld>) -> Json<Value> {
+/// Body of `set_pause` command.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PausePayload {
+    pub is_paused: bool,
+}
+
+/// `cmd_home` — full snapshot of lands, roads, and settlements.
+/// Re-reads the world on every call so mutations are immediately visible.
+#[tauri::command]
+pub fn home(world: State<SharedWorld>) -> Value {
     // Acquire the lock, build the response payload, then drop the guard
     // before returning so we never hold the lock across an `.await`.
     let lands: Vec<Value> = {
@@ -134,5 +146,36 @@ pub async fn home(State(world): State<SharedWorld>) -> Json<Value> {
         settlements
     };
 
-    Json(json!({ "data": { "lands": lands, "roads": roads, "settlements": settlements } }))
+    json!({ "data": { "lands": lands, "roads": roads, "settlements": settlements } })
+}
+
+/// `cmd_get_date` — current in-game date and pause flag.
+/// `data.date` is `null` when no `Date` entity exists yet.
+#[tauri::command]
+pub fn get_date(world: State<SharedWorld>, app: State<SharedApp>) -> Value {
+    // Copy the date out and drop the guard before returning so the lock
+    // is never held across an `.await`.
+    let date: Option<Date> = {
+        let w = world.lock().expect("world mutex poisoned");
+        w.query::<&Date>().iter().next().copied()
+    };
+
+    let date = match date {
+        Some(d) => json!({ "year": d.year, "month": d.month, "day": d.day }),
+        None => Value::Null,
+    };
+
+    json!({
+        "data": {
+            "date": date,
+            "is_paused": app.is_paused(),
+        }
+    })
+}
+
+/// `cmd_set_pause` — pauses or resumes the tick loop, returns the applied value.
+#[tauri::command]
+pub fn set_pause(app: State<SharedApp>, payload: PausePayload) -> Value {
+    app.set_pause(payload.is_paused);
+    json!({ "data": { "is_paused": payload.is_paused } })
 }

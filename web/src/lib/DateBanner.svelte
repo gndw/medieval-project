@@ -1,10 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { fetchDate, setPause } from "./api";
+  import { fetchDate, onDateUpdated, setPause } from "./api";
   import { date, isPaused } from "./store";
-
-  // Poll interval in ms. Matches the backend tick (TICK_PER_SECONDS).
-  const POLL_MS = 1000;
 
   // Zero-pad to `width` digits so the banner never changes width.
   const pad = (n: number, width = 2) => String(n).padStart(width, "0");
@@ -13,7 +10,7 @@
     $date ? `${pad($date.year, 4)}/${pad($date.month)}/${pad($date.day)}` : null,
   );
 
-  // Set while a POST is in flight so the poll cannot overwrite the
+  // Set while a POST is in flight so the event cannot overwrite the
   // optimistic value with a stale read taken before the server applied it.
   let pending = false;
 
@@ -33,14 +30,14 @@
   onMount(() => {
     let stopped = false;
 
-    async function refresh() {
+    async function seed() {
       try {
         const d = await fetchDate();
         if (stopped) return;
         date.set(d.date);
-        if (!pending) isPaused.set(d.is_paused);
+        isPaused.set(d.is_paused);
       } catch {
-        // Transient failures are ignored; the next poll retries.
+        // Transient failures are ignored; the event stream will catch up.
       }
     }
 
@@ -53,12 +50,21 @@
       togglePause();
     }
 
-    refresh();
-    const timer = setInterval(refresh, POLL_MS);
+    let unlisten: (() => void) | null = null;
+    onDateUpdated((d) => {
+      if (stopped) return;
+      date.set(d.date);
+      if (!pending) isPaused.set(d.is_paused);
+    }).then((fn) => {
+      if (stopped) fn();
+      else unlisten = fn;
+    });
+
+    seed();
     window.addEventListener("keydown", onKeydown);
     return () => {
       stopped = true;
-      clearInterval(timer);
+      if (unlisten) unlisten();
       window.removeEventListener("keydown", onKeydown);
     };
   });
