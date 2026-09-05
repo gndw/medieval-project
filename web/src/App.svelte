@@ -17,11 +17,6 @@
       selectedLandId.set(null);
     }
   });
-
-  $effect(() => {
-    // Track the store so the panel reactively appears / disappears.
-    void $selectedLandId;
-  });
 </script>
 
 <Router>
@@ -39,14 +34,12 @@
 
     <div class="stage">
       <Route path="/"><MapView /></Route>
+      {#if $selectedLandId}
+        <LandDetail />
+      {/if}
     </div>
   </main>
 </Router>
-
-<!-- LandDetail is store-driven, not a Route. URL is kept in sync by MapView/LandDetail's navigate() calls; onMount above restores selection on deep link. -->
-{#if $selectedLandId}
-  <LandDetail />
-{/if}
 
 <style>
   .layout {

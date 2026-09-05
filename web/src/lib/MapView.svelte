@@ -69,19 +69,34 @@
     navigate("/");
   }
 
-  // Pan with mousedown + drag.
+  // Pan with mousedown + drag. A real click (no drag) clears the selection.
   let dragging = $state(false);
   let lastX = 0, lastY = 0;
+  // True once the cursor has moved past PAN_THRESHOLD between down and up.
+  // Suppresses the click that would otherwise close the land detail.
+  let didPan = false;
+  let downX = 0, downY = 0;
+  const PAN_THRESHOLD = 4;
 
   function onMouseDown(ev: MouseEvent) {
     if (ev.button !== 0) return;
     dragging = true;
+    didPan = false;
+    downX = ev.clientX;
+    downY = ev.clientY;
     lastX = ev.clientX;
     lastY = ev.clientY;
   }
 
   function onMouseMove(ev: MouseEvent) {
     if (!dragging) return;
+    if (
+      !didPan &&
+      (Math.abs(ev.clientX - downX) > PAN_THRESHOLD ||
+        Math.abs(ev.clientY - downY) > PAN_THRESHOLD)
+    ) {
+      didPan = true;
+    }
     const dx = ev.clientX - lastX;
     const dy = ev.clientY - lastY;
     lastX = ev.clientX;
@@ -98,6 +113,15 @@
 
   function onMouseUp() {
     dragging = false;
+  }
+
+  function onSvgClick() {
+    // Panning should leave the land detail open; only a true click clears it.
+    if (didPan) {
+      didPan = false;
+      return;
+    }
+    clearSelection();
   }
 
   // Keyboard: arrows pan, +/- zoom, Escape clears selection.
@@ -168,7 +192,7 @@
     onmouseup={onMouseUp}
     onmouseleave={onMouseUp}
     onwheel={onWheel}
-    onclick={clearSelection}
+    onclick={onSvgClick}
     onkeydown={onKeyDown}
     role="application"
     tabindex="0"

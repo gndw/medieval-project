@@ -7,6 +7,68 @@
     land ? $settlements.find((s) => s.land_id === land!.id) ?? null : null,
   );
 
+  // Drag offset relative to the CSS-anchored position (top:24px, right:24px).
+  let dx = $state(0);
+  let dy = $state(0);
+  let dragging = $state(false);
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let startDx = 0;
+  let startDy = 0;
+  let panelEl: HTMLElement | undefined = $state();
+
+  // Clamp the panel so it cannot leave the visible map area.
+  function clamp(nx: number, ny: number): { x: number; y: number } {
+    const parent = panelEl?.offsetParent as HTMLElement | null;
+    if (!parent || !panelEl) return { x: nx, y: ny };
+    const pw = parent.clientWidth;
+    const ph = parent.clientHeight;
+    const w = panelEl.offsetWidth;
+    const h = panelEl.offsetHeight;
+    // Panel is anchored top-right with 24px margin: dx>0 slides right (off-edge),
+    // dx<0 slides left toward the map interior. Mirror for the vertical axis.
+    const minDx = -(pw - w - 24);
+    const maxDx = 24;
+    const minDy = 0;
+    const maxDy = ph - h - 24;
+    return {
+      x: Math.max(minDx, Math.min(maxDx, nx)),
+      y: Math.max(minDy, Math.min(maxDy, ny)),
+    };
+  }
+
+  function onHeaderPointerDown(ev: PointerEvent) {
+    if (ev.button !== 0) return;
+    // Don't start a drag when the close button is the actual target.
+    if ((ev.target as HTMLElement).closest(".close")) return;
+    dragging = true;
+    dragStartX = ev.clientX;
+    dragStartY = ev.clientY;
+    startDx = dx;
+    startDy = dy;
+    (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+  }
+
+  function onHeaderPointerMove(ev: PointerEvent) {
+    if (!dragging) return;
+    const { x, y } = clamp(
+      startDx + (ev.clientX - dragStartX),
+      startDy + (ev.clientY - dragStartY),
+    );
+    dx = x;
+    dy = y;
+  }
+
+  function onHeaderPointerUp(ev: PointerEvent) {
+    if (!dragging) return;
+    dragging = false;
+    try {
+      (ev.currentTarget as HTMLElement).releasePointerCapture(ev.pointerId);
+    } catch {
+      // Pointer was already released; nothing to do.
+    }
+  }
+
   function close() {
     selectedLandId.set(null);
     navigate("/");
@@ -18,8 +80,26 @@
 </script>
 
 {#if land}
-  <aside class="panel">
-    <header>
+  <div
+    bind:this={panelEl}
+    class="panel"
+    class:dragging
+    style="transform: translate({dx}px, {dy}px)"
+    role="dialog"
+    aria-label="Land details for {land.name}"
+  >
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <header
+      onpointerdown={onHeaderPointerDown}
+      onpointermove={onHeaderPointerMove}
+      onpointerup={onHeaderPointerUp}
+      onpointercancel={onHeaderPointerUp}
+    >
+      <span class="grip" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
       <div class="header-text">
         <span class="eyebrow">land</span>
         <h2>{land.name}</h2>
@@ -27,123 +107,165 @@
       <button class="close" onclick={close} aria-label="Close details">×</button>
     </header>
 
-    <dl class="kv">
-      <dt>id</dt>
-      <dd><code>{land.id}</code></dd>
+    <div class="body">
+      <dl class="kv">
+        <dt>id</dt>
+        <dd><code>{land.id}</code></dd>
 
-      <dt>terrain</dt>
-      <dd><span class="terrain terrain-{land.terrain}">{land.terrain}</span></dd>
+        <dt>terrain</dt>
+        <dd><span class="terrain terrain-{land.terrain}">{land.terrain}</span></dd>
 
-      <dt>holding</dt>
-      <dd>({fmtCoord(land.holding)})</dd>
+        <dt>holding</dt>
+        <dd>({fmtCoord(land.holding)})</dd>
 
-      <dt>border vertices</dt>
-      <dd>{land.borders.length}</dd>
-    </dl>
+        <dt>border vertices</dt>
+        <dd>{land.borders.length}</dd>
+      </dl>
 
-    <section class="settlement">
-      <h3>Settlement</h3>
-      {#if settlement}
-        <dl class="kv">
-          <dt>id</dt>
-          <dd><code>{settlement.id}</code></dd>
-        </dl>
+      <section class="settlement">
+        <h3>Settlement</h3>
+        {#if settlement}
+          <dl class="kv">
+            <dt>id</dt>
+            <dd><code>{settlement.id}</code></dd>
+          </dl>
 
-        {#if settlement.inventories.length > 0}
-          <h4 class="children-title">
-            Inventories
-            <span class="count">{settlement.inventories.length}</span>
-          </h4>
-          <table class="children inventories">
-            <thead>
-              <tr><th>Resource</th><th class="num">Quantity</th></tr>
-            </thead>
-            <tbody>
-              {#each settlement.inventories as inv (inv.id)}
-                <tr>
-                  <td><code>{inv.resource_id}</code></td>
-                  <td class="num">{inv.quantity.toLocaleString()}</td>
-                </tr>
+          {#if settlement.inventories.length > 0}
+            <h4 class="children-title">
+              Inventories
+              <span class="count">{settlement.inventories.length}</span>
+            </h4>
+            <table class="children inventories">
+              <thead>
+                <tr><th>Resource</th><th class="num">Quantity</th></tr>
+              </thead>
+              <tbody>
+                {#each settlement.inventories as inv (inv.id)}
+                  <tr>
+                    <td><code>{inv.resource_id}</code></td>
+                    <td class="num">{inv.quantity.toLocaleString()}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {/if}
+
+          {#if settlement.populations.length > 0}
+            <h4 class="children-title">
+              Populations
+              <span class="count">{settlement.populations.length}</span>
+            </h4>
+            <ul class="children populations">
+              {#each settlement.populations as pop (pop.id)}
+                <li>
+                  <code>{pop.id}</code>
+                  <span class="muted-inline">— {pop.profession_id}</span>
+                </li>
               {/each}
-            </tbody>
-          </table>
-        {/if}
+            </ul>
+          {/if}
 
-        {#if settlement.populations.length > 0}
-          <h4 class="children-title">
-            Populations
-            <span class="count">{settlement.populations.length}</span>
-          </h4>
-          <ul class="children populations">
-            {#each settlement.populations as pop (pop.id)}
-              <li>
-                <code>{pop.id}</code>
-                <span class="muted-inline">— {pop.profession_id}</span>
-              </li>
-            {/each}
-          </ul>
+          {#if settlement.workplaces.length > 0}
+            <h4 class="children-title">
+              Workplaces
+              <span class="count">{settlement.workplaces.length}</span>
+            </h4>
+            <ul class="children workplaces">
+              {#each settlement.workplaces as work (work.id)}
+                <li>
+                  <code>{work.id}</code>
+                  <div class="refs">
+                    production: <code>{work.production_id}</code><br />
+                    staffed by: <code>{work.population_id}</code>
+                  </div>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        {:else}
+          <p class="muted">No settlement inhabits these lands.</p>
         {/if}
+      </section>
 
-        {#if settlement.workplaces.length > 0}
-          <h4 class="children-title">
-            Workplaces
-            <span class="count">{settlement.workplaces.length}</span>
-          </h4>
-          <ul class="children workplaces">
-            {#each settlement.workplaces as work (work.id)}
-              <li>
-                <code>{work.id}</code>
-                <div class="refs">
-                  production: <code>{work.production_id}</code><br />
-                  staffed by: <code>{work.population_id}</code>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      {:else}
-        <p class="muted">No settlement inhabits these lands.</p>
-      {/if}
-    </section>
-
-    <section class="borders">
-      <h3>Borders</h3>
-      <ol>
-        {#each land.borders as [x, y], i}
-          <li>{String(i + 1).padStart(2, "0")} ({x.toFixed(2)}, {y.toFixed(2)})</li>
-        {/each}
-      </ol>
-    </section>
-  </aside>
+      <section class="borders">
+        <h3>Borders</h3>
+        <ol>
+          {#each land.borders as [x, y], i}
+            <li>{String(i + 1).padStart(2, "0")} ({x.toFixed(2)}, {y.toFixed(2)})</li>
+          {/each}
+        </ol>
+      </section>
+    </div>
+  </div>
 {/if}
 
 <style>
+  /* Floating "folio" card. Anchored top-right by default; transform offsets it. */
   .panel {
     position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(360px, 38vw);
-    padding: 1.25rem 1.25rem 1.25rem;
+    top: 24px;
+    right: 24px;
+    width: min(360px, calc(100% - 48px));
+    max-height: calc(100% - 48px);
+    display: flex;
+    flex-direction: column;
     background: var(--surface);
     color: var(--ink);
-    border-left: 1px solid var(--ink-faint);
-    overflow-y: auto;
+    border: 1px solid var(--ink);
+    box-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.04),
+      0 8px 24px rgba(0, 0, 0, 0.14);
     font-family: var(--font-body);
+    z-index: 10;
+    transition: box-shadow 120ms ease;
+  }
+  .panel.dragging {
+    box-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.06),
+      0 16px 36px rgba(0, 0, 0, 0.22);
   }
 
+  /* Header is the drag handle: cursor + touch-action prevent native scroll. */
   header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.65rem 0.75rem;
+    background: var(--surface-deep);
     border-bottom: 1px solid var(--ink);
-    padding-bottom: 0.6rem;
-    margin-bottom: 1rem;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
   }
+  .dragging header,
+  header:active {
+    cursor: grabbing;
+  }
+
+  .grip {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    width: 14px;
+    height: 18px;
+    padding: 3px 0;
+  }
+  .grip span {
+    display: block;
+    height: 1px;
+    background: var(--ink-mid);
+  }
+  .dragging .grip span {
+    background: var(--accent);
+  }
+
   .header-text {
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.15rem;
+    min-width: 0;
   }
   .eyebrow {
     font-family: var(--font-body);
@@ -155,12 +277,16 @@
   h2 {
     margin: 0;
     font-family: var(--font-display);
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 400;
     letter-spacing: 0.02em;
     line-height: 1.1;
     color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
+
   .close {
     background: transparent;
     border: 1px solid var(--ink-faint);
@@ -182,12 +308,18 @@
     outline-offset: 2px;
   }
 
+  .body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 1rem 1.1rem 1.25rem;
+  }
+
   .kv {
     display: grid;
     grid-template-columns: max-content 1fr;
     column-gap: 0.85rem;
     row-gap: 0.45rem;
-    margin: 0 0 1.25rem;
+    margin: 0 0 1.1rem;
   }
   .kv dt {
     font-family: var(--font-body);
@@ -201,6 +333,9 @@
     margin: 0;
     font-family: var(--font-body);
     font-size: 0.85rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   code {
     font-family: var(--font-body);
@@ -228,7 +363,7 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--ink-mid);
-    margin: 1.25rem 0 0.5rem;
+    margin: 1.1rem 0 0.5rem;
     padding-bottom: 0.3rem;
     border-bottom: 1px solid var(--ink-faint);
   }
