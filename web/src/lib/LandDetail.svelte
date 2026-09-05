@@ -74,8 +74,11 @@
     navigate("/");
   }
 
-  function fmtCoord([x, y]: [number, number]): string {
-    return `${x.toFixed(2)}, ${y.toFixed(2)}`;
+  // Strip a leading "resource-" segment and title-case the remainder.
+  function resourceName(id: string): string {
+    const parts = id.split("-");
+    if (parts[0] === "resource") parts.shift();
+    return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
   }
 </script>
 
@@ -109,27 +112,13 @@
 
     <div class="body">
       <dl class="kv">
-        <dt>id</dt>
-        <dd><code>{land.id}</code></dd>
-
         <dt>terrain</dt>
         <dd><span class="terrain terrain-{land.terrain}">{land.terrain}</span></dd>
-
-        <dt>holding</dt>
-        <dd>({fmtCoord(land.holding)})</dd>
-
-        <dt>border vertices</dt>
-        <dd>{land.borders.length}</dd>
       </dl>
 
       <section class="settlement">
         <h3>Settlement</h3>
         {#if settlement}
-          <dl class="kv">
-            <dt>id</dt>
-            <dd><code>{settlement.id}</code></dd>
-          </dl>
-
           {#if settlement.inventories.length > 0}
             <h4 class="children-title">
               Inventories
@@ -142,7 +131,7 @@
               <tbody>
                 {#each settlement.inventories as inv (inv.id)}
                   <tr>
-                    <td><code>{inv.resource_id}</code></td>
+                    <td>{resourceName(inv.resource_id)}</td>
                     <td class="num">{inv.quantity.toLocaleString()}</td>
                   </tr>
                 {/each}
@@ -185,15 +174,6 @@
         {:else}
           <p class="muted">No settlement inhabits these lands.</p>
         {/if}
-      </section>
-
-      <section class="borders">
-        <h3>Borders</h3>
-        <ol>
-          {#each land.borders as [x, y], i}
-            <li>{String(i + 1).padStart(2, "0")} ({x.toFixed(2)}, {y.toFixed(2)})</li>
-          {/each}
-        </ol>
       </section>
     </div>
   </div>
@@ -367,20 +347,6 @@
     padding-bottom: 0.3rem;
     border-bottom: 1px solid var(--ink-faint);
   }
-  .borders ol {
-    margin: 0;
-    padding-left: 0;
-    font-family: var(--font-body);
-    font-size: 0.78rem;
-    line-height: 1.55;
-    color: var(--ink-mid);
-    list-style: none;
-    columns: 2;
-    column-gap: 1rem;
-  }
-  .borders li {
-    break-inside: avoid;
-  }
   .muted {
     color: var(--ink-mid);
     margin: 0;
@@ -418,6 +384,7 @@
     text-align: left;
     padding: 0.25rem 0.35rem;
     border-bottom: 1px solid var(--ink-faint);
+    font-variant-numeric: tabular-nums;
   }
   table.children th {
     font-family: var(--font-body);
